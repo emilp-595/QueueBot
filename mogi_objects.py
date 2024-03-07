@@ -163,6 +163,7 @@ class VoteView(View):
         self.__setattr__("2v2", [])
         self.__setattr__("3v3", [])
         self.__setattr__("4v4", [])
+        self.__setattr__("6v6", [])
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -177,11 +178,12 @@ class VoteView(View):
         msg += f"2) 2v2 - {len(self['2v2'])}\n"
         msg += f"3) 3v3 - {len(self['3v3'])}\n"
         msg += f"4) 4v4 - {len(self['4v4'])}\n"
+        msg += f"5) 6v6 - {len(self['6v6'])}\n"
         msg += f"Winner: {format[1]}\n\n"
 
         room_mmr = round(sum([p.mmr for p in self.players]) / 12)
         room.mmr_average = room_mmr
-        self.header_text = f"**Room {room.room_num} MMR: {room_mmr} - Tier {get_tier(room_mmr - 500)}** "
+        self.header_text = f"**Room {room.room_num} MMR: {room_mmr} - {get_tier(room_mmr)}** "
         msg += self.header_text
         msg += "\n"
 
@@ -204,11 +206,7 @@ class VoteView(View):
             msg += team_text
             self.teams_text += team_text
 
-        msg += f"\nTable: `/scoreboard`\n"
-
-        msg += f"RandomBot Scoreboard: `/scoreboard {teams_per_room} {', '.join(scoreboard_text)}`\n\n"
-
-        msg += "Decide a host amongst yourselves; room open at :00, penalty at :06. Good luck!"
+        msg += "Decide a host amongst yourselves; room open at :00, penalty at :08. Good luck!"
 
         room.teams = teams
 
@@ -227,6 +225,8 @@ class VoteView(View):
                 max = len(self["3v3"])
             if len(self["4v4"]) > max:
                 max = len(self["4v4"])
+            if len(self["6v6"]) > max:
+                max = len(self["6v6"])
 
             winners = []
 
@@ -238,6 +238,8 @@ class VoteView(View):
                 winners.append((3, "3v3"))
             if len(self["4v4"]) == max:
                 winners.append((4, "4v4"))
+            if len(self["6v6"]) == max:
+                winners.append((6, "6v6"))
 
             winner = random.choice(winners)
 
@@ -258,6 +260,8 @@ class VoteView(View):
                     self["3v3"].remove(interaction.user.id)
                 if interaction.user.id in self["4v4"]:
                     self["4v4"].remove(interaction.user.id)
+                if interaction.user.id in self["6v6"]:
+                    self["6v6"].remove(interaction.user.id)
                 self["FFA"].append(interaction.user.id)
             if len(self["FFA"]) == 6:
                 await self.make_teams((1, "FFA"))
@@ -279,6 +283,8 @@ class VoteView(View):
                     self["3v3"].remove(interaction.user.id)
                 if interaction.user.id in self["4v4"]:
                     self["4v4"].remove(interaction.user.id)
+                if interaction.user.id in self["6v6"]:
+                    self["6v6"].remove(interaction.user.id)
                 self["2v2"].append(interaction.user.id)
             if len(self["2v2"]) == 6:
                 await self.make_teams((2, "2v2"))
@@ -300,6 +306,8 @@ class VoteView(View):
                     self["2v2"].remove(interaction.user.id)
                 if interaction.user.id in self["4v4"]:
                     self["4v4"].remove(interaction.user.id)
+                if interaction.user.id in self["6v6"]:
+                    self["6v6"].remove(interaction.user.id)
                 self["3v3"].append(interaction.user.id)
             if len(self["3v3"]) == 6:
                 await self.make_teams((3, "3v3"))
@@ -321,12 +329,37 @@ class VoteView(View):
                     self["2v2"].remove(interaction.user.id)
                 if interaction.user.id in self["3v3"]:
                     self["3v3"].remove(interaction.user.id)
+                if interaction.user.id in self["6v6"]:
+                    self["6v6"].remove(interaction.user.id)
                 self["4v4"].append(interaction.user.id)
             if len(self["4v4"]) == 6:
                 await self.make_teams((4, "4v4"))
             for curr_button in self.children:
                 curr_button.label = f"{curr_button.custom_id}: {len(self[curr_button.custom_id])}"
                 if len(self["4v4"]) == 6:
+                    curr_button.disabled = True
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="6v6: 0", custom_id="6v6")
+    async def six_button_callback(self, interaction, button):
+        if not self.found_winner:
+            if interaction.user.id in self["6v6"]:
+                self["6v6"].remove(interaction.user.id)
+            else:
+                if interaction.user.id in self["FFA"]:
+                    self["FFA"].remove(interaction.user.id)
+                if interaction.user.id in self["2v2"]:
+                    self["2v2"].remove(interaction.user.id)
+                if interaction.user.id in self["3v3"]:
+                    self["3v3"].remove(interaction.user.id)
+                if interaction.user.id in self["4v4"]:
+                    self["4v4"].remove(interaction.user.id)
+                self["6v6"].append(interaction.user.id)
+            if len(self["6v6"]) == 6:
+                await self.make_teams((6, "6v6"))
+            for curr_button in self.children:
+                curr_button.label = f"{curr_button.custom_id}: {len(self[curr_button.custom_id])}"
+                if len(self["6v6"]) == 6:
                     curr_button.disabled = True
         await interaction.response.edit_message(view=self)
 
@@ -364,33 +397,17 @@ class JoinView(View):
 
 
 def get_tier(mmr: int):
-    if mmr > 14000:
-        return 'X'
-    if mmr > 13000:
-        return 'S'
-    if mmr > 12000:
-        return 'A'
     if mmr > 11000:
-        return 'AB'
-    if mmr > 10000:
-        return 'B'
-    if mmr > 9000:
-        return 'BC'
-    if mmr > 8000:
-        return 'C'
-    if mmr > 7000:
-        return 'CD'
-    if mmr > 6000:
-        return 'D'
+        return 'T7'
+    if mmr > 9500:
+        return 'T6'
+    if mmr > 7500:
+        return 'T5'
+    if mmr > 6250:
+        return 'T4'
     if mmr > 5000:
-        return 'DE'
-    if mmr > 4000:
-        return 'E'
-    if mmr > 3000:
-        return 'EF'
-    if mmr > 2000:
-        return 'F'
-    if mmr > 1000:
-        return 'FG'
+        return 'T3'
+    if mmr > 3500:
+        return 'T2'
     else:
-        return 'G'
+        return 'T1'

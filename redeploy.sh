@@ -1,5 +1,5 @@
 #!/bin/bash
-docker build --tag mogi-queuebot .
-docker stop mogi-queuebot
-docker rm mogi-queuebot
-docker run -d --name mogi-queuebot --restart unless-stopped mogi-queuebot
+docker build --tag mkwii-mogi-queuebot .
+docker stop mkwii-mogi-queuebot
+docker rm mkwii-mogi-queuebot
+docker run -d --name mkwii-mogi-queuebot --restart unless-stopped mkwii-mogi-queuebot

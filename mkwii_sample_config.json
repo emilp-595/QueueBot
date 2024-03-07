@@ -1,0 +1,34 @@
+{
+	"token": "",
+	"guild_id": 387347467332485122,
+	
+	"admin_roles": {"387347467332485122": ["Administrator", "Lounge Staff"]},
+	
+	"queue_join_channel": 1215174119767932979,
+    "queue_sub_channel": 1215174160234315806,
+	"queue_history_channel": 1215174057453162496,
+
+	"members_for_channels": {"387347467332485122": [
+		235148962103951360, 
+		155149108183695360, 
+		815483289515196416, 
+		892420397570592768, 
+		775415990238314518, 
+		774812906830299136, 
+		745443073202323586,
+		774866940950872095]},
+
+	"queue_messages": true,
+	"sec_between_queue_msgs": 2,
+
+	"username": "username",
+	"password": "password",
+	"url": "https://www.mkwlounge.gg",
+
+	"TIME_ADJUSTMENT": 0,
+	"QUEUE_OPEN_TIME": 60,
+	"JOINING_TIME": 55,
+	"EXTENSION_TIME": 3,
+	"MOGI_LIFETIME": 180,
+	"SUB_MESSAGE_LIFETIME_SECONDS": 1200
+}

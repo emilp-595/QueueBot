@@ -5,7 +5,7 @@ from dateutil.parser import parse
 from datetime import datetime, timezone, timedelta
 import time
 import json
-from mmr import mk8dx_150cc_mmr, get_mmr_from_discord_id, mk8dx_150cc_fc
+from mmr import mk8dx_150cc_mmr, get_mmr_from_discord_id
 from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier
 import asyncio
 
@@ -248,48 +248,6 @@ class SquadQueue(commands.Cog):
         await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         await interaction.response.send_message("Sent out request for sub.")
 
-    @app_commands.command(name="l")
-    @app_commands.checks.cooldown(1, 120, key=lambda i: (i.channel.id))
-    @app_commands.guild_only()
-    async def list(self, interaction: discord.Interaction):
-        """Display the list of confirmed players for a mogi"""
-        mogi = self.get_mogi(interaction)
-        if mogi is None:
-            await interaction.response.send_message("Queue has not started yet.")
-            return
-        if not await self.is_started(interaction, mogi):
-            return
-        mogi_list = mogi.confirmed_list()
-        if len(mogi_list) == 0:
-            await interaction.response.send_message(f"There are no players in the queue - type `/c` to join")
-            return
-
-        sorted_mogi_list = sorted(mogi_list, reverse=True)
-        msg = "Current Mogi List:\n"
-        for i in range(len(sorted_mogi_list)):
-            msg += f"{i+1}) "
-            msg += ", ".join([p.lounge_name for p in sorted_mogi_list[i].players])
-            msg += f" ({sorted_mogi_list[i].avg_mmr:.1f} MMR)\n"
-        if (len(sorted_mogi_list) % (12/mogi.size) != 0):
-            num_next = int(len(sorted_mogi_list) % (12/mogi.size))
-            teams_per_room = int(12/mogi.size)
-            num_rooms = int(len(sorted_mogi_list) / (12/mogi.size))+1
-            msg += f"[{num_next}/{teams_per_room}] players for {num_rooms} room(s)"
-        message = msg.split("\n")
-        bulk_msg = ""
-        for i in range(len(message)):
-            if len(bulk_msg + message[i] + "\n") > 2000:
-                await interaction.channel.send(bulk_msg) if interaction.response.is_done() else await interaction.response.send_message(bulk_msg)
-                bulk_msg = ""
-            bulk_msg += message[i] + "\n"
-        if len(bulk_msg) > 0:
-            await interaction.channel.send(bulk_msg) if interaction.response.is_done() else await interaction.response.send_message(bulk_msg)
-
-    @list.error  # Tell the user when they've got a cooldown
-    async def on_list_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message("Wait before using `/l` command", ephemeral=True)
-
     @tasks.loop(minutes=1)
     async def list_task(self):
         """Continually display the list of confirmed players for a mogi in the history channel"""
@@ -377,37 +335,6 @@ class SquadQueue(commands.Cog):
             lambda player: player.member.id == message.author.id, team.players)
         if player:
             player.score = int(message.content)
-
-    @app_commands.command(name="scoreboard")
-    @app_commands.guild_only()
-    async def scoreboard(self, interaction: discord.Interaction):
-        """Displays the scoreboard of the room. Only works in thread channels for SQ rooms."""
-
-        mogi = discord.utils.find(lambda mogi: mogi.is_room_thread(
-            interaction.channel_id), self.ongoing_events.values())
-        if not mogi:
-            mogi = discord.utils.find(lambda mogi: mogi.is_room_thread(
-                interaction.channel_id), self.old_events.values())
-            if not mogi:
-                await interaction.response.send_message(f"The Mogi object cannot be found.", ephemeral=True)
-                return
-
-        room = discord.utils.find(
-            lambda room: room.thread.id == interaction.channel_id, mogi.rooms)
-
-        if not room:
-            await interaction.response.send_message(f"The Thread object cannot be found.", ephemeral=True)
-            return
-
-        format = round(12/len(room.teams))
-
-        msg = f"!submit {format} {get_tier(room.mmr_average - 500)}\n"
-        for team in room.teams:
-            for player in team.players:
-                msg += f"{player.lounge_name} {player.score}\n"
-            if format != 1:
-                msg += "\n"
-        await interaction.response.send_message(msg)
 
     @app_commands.command(name="remove_player")
     @app_commands.guild_only()
@@ -533,31 +460,6 @@ class SquadQueue(commands.Cog):
                 return True
         return False
 
-    # command to add staff to room thread channels; users can't add new users to private threads,
-    # so the bot has to with this command
-    @commands.command()
-    @commands.cooldown(1, 60, commands.BucketType.channel)
-    async def staff(self, ctx):
-        """Calls staff to the current channel. Only works in thread channels for SQ rooms."""
-        is_room_thread = False
-        for mogi in self.ongoing_events.values():
-            if mogi.is_room_thread(ctx.channel.id):
-                is_room_thread = True
-                break
-        for mogi in self.old_events.values():
-            if mogi.is_room_thread(ctx.channel.id):
-                is_room_thread = True
-                break
-        if not is_room_thread:
-            return
-        if str(ctx.guild.id) not in ctx.bot.config["staff_roles"].keys():
-            await ctx.send("There is no Lounge Staff role configured for this server")
-            return
-        lounge_staff_roles = ctx.bot.config["staff_roles"][str(ctx.guild.id)]
-        mentions = " ".join(
-            [ctx.guild.get_role(role).mention for role in lounge_staff_roles])
-        await ctx.send(mentions)
-
     async def end_voting(self):
         """Ends voting in all rooms with ongoing votes."""
         try:
@@ -669,7 +571,7 @@ class SquadQueue(commands.Cog):
             room_msg = msg
             mentions += " ".join([m.mention for m in extra_members if m is not None])
             room_msg += "\nVote for format FFA, 2v2, 3v3, or 4v4.\n"
-            room_msg += "\nIf you need staff's assistance, use the `!staff` command in this channel.\n"
+            # room_msg += "\nIf you need staff's assistance, use the `!staff` command in this channel.\n"
             room_msg += mentions
             try:
                 curr_room = rooms[i]
