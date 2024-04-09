@@ -43,6 +43,8 @@ class SquadQueue(commands.Cog):
 
         self.SUB_CHANNEL = None
 
+        self.LIST_CHANNEL = None
+
         self.HISTORY_CHANNEL = None
 
         self.LOCK = asyncio.Lock()
@@ -72,11 +74,14 @@ class SquadQueue(commands.Cog):
             self.bot.config["queue_join_channel"])
         self.SUB_CHANNEL = self.bot.get_channel(
             self.bot.config["queue_sub_channel"])
+        self.LIST_CHANNEL = self.bot.get_channel(
+            self.bot.config["queue_list_channel"])
         self.HISTORY_CHANNEL = self.bot.get_channel(
             self.bot.config["queue_history_channel"])
         print(f"Server - {self.GUILD}", flush=True)
         print(f"Join Channel - {self.MOGI_CHANNEL}", flush=True)
         print(f"Sub Channel - {self.SUB_CHANNEL}", flush=True)
+        print(f"List Channel - {self.LIST_CHANNEL}", flush=True)
         print(f"History Channel - {self.HISTORY_CHANNEL}", flush=True)
         print("Ready!", flush=True)
 
@@ -84,10 +89,13 @@ class SquadQueue(commands.Cog):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
         # if not everyone_perms.send_messages:
         #     return
-        overwrite = channel.overwrites_for(channel.guild.default_role)
-        overwrite.send_messages = False
-        await channel.set_permissions(channel.guild.default_role, overwrite=overwrite)
-        await channel.send("Locked down " + channel.mention)
+        try:
+            overwrite = channel.overwrites_for(channel.guild.default_role)
+            overwrite.send_messages = False
+            await channel.set_permissions(channel.guild.default_role, overwrite=overwrite)
+            await channel.send("Locked down " + channel.mention)
+        except Exception as e:
+            print(e, flush=True)
 
     async def unlockdown(self, channel: discord.TextChannel):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
@@ -266,7 +274,7 @@ class SquadQueue(commands.Cog):
                     msg += ", ".join([p.lounge_name for p in sorted_mogi_list[i].players])
                     msg += f" ({sorted_mogi_list[i].players[0].mmr} MMR)\n"
                     if ((i + 1) % 12 == 0):
-                        msg += "\n"
+                        msg += "ㅤ\n"
                 if (len(sorted_mogi_list) % (12/mogi.size) != 0):
                     num_next = int(len(sorted_mogi_list) % (12/mogi.size))
                     teams_per_room = int(12/mogi.size)
@@ -292,12 +300,12 @@ class SquadQueue(commands.Cog):
                             old_message = self.list_messages[i]
                             await old_message.edit(content=message)
                         else:
-                            new_message = await self.HISTORY_CHANNEL.send(message)
+                            new_message = await self.LIST_CHANNEL.send(message)
                             self.list_messages.append(new_message)
                 except:
                     await self.delete_list_messages(0)
                     for i, message in enumerate(new_messages):
-                        new_message = await self.HISTORY_CHANNEL.send(message)
+                        new_message = await self.LIST_CHANNEL.send(message)
                         self.list_messages.append(new_message)
         else:
             await self.delete_list_messages(0)
@@ -307,8 +315,8 @@ class SquadQueue(commands.Cog):
             messages_to_delete = []
             while len(self.list_messages) > new_list_size:
                 messages_to_delete.append(self.list_messages.pop())
-            if self.HISTORY_CHANNEL and len(messages_to_delete) > 0:
-                await self.HISTORY_CHANNEL.delete_messages(messages_to_delete)
+            if self.LIST_CHANNEL and len(messages_to_delete) > 0:
+                await self.LIST_CHANNEL.delete_messages(messages_to_delete)
         except Exception as e:
             print(e, flush=True)
 
