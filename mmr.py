@@ -6,7 +6,7 @@ headers = {'Content-type': 'application/json'}
 
 
 async def mk8dx_150cc_mmr(url, members):
-    base_url = url + '/api/ladderplayer.php?ladder_id=9&'
+    base_url = url + '/api/ladderplayer.php?ladder_type=rt&'
     players = []
     timeout = aiohttp.ClientTimeout(total=10)
     try:
@@ -35,7 +35,7 @@ async def mk8dx_150cc_mmr(url, members):
 
 
 async def get_mmr_from_discord_id(discord_id):
-    base_url = "https://www.mkwlounge.gg" + '/api/ladderplayer.php?ladder_id=9&'
+    base_url = "https://www.mkwlounge.gg" + '/api/ladderplayer.php?ladder_type=rt&'
     timeout = aiohttp.ClientTimeout(total=10)
     async with aiohttp.ClientSession(
         timeout=timeout,
