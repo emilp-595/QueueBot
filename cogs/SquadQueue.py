@@ -242,12 +242,12 @@ class SquadQueue(commands.Cog):
         if not is_room_thread:
             await interaction.response.send_message(f"More than {self.MOGI_LIFETIME} minutes have passed since mogi start, the Mogi Object has been deleted.", ephemeral=True)
             return
-        msg = "<@&682445864400453739> - "
+        # msg = "<@&682445864400453739> - "
         if room.room_num == 1:
             msg += f"Room {room.room_num} is looking for a sub with mmr >{room.mmr_low - 500}\n"
         else:
-            low = 0 if room.mmr_low < 500 else room.mmr_low - 500
-            msg += f"Room {room.room_num} is looking for a sub with range {low}-{room.mmr_high + 500}\n"
+            # low = 0 if room.mmr_low < 500 else room.mmr_low - 500
+            msg += f"Room {room.room_num} is looking for a sub with range {room.mmr_low - 500}-{room.mmr_high + 500}\n"
         message_delete_date = datetime.now(
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
