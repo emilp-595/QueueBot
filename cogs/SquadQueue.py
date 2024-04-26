@@ -25,6 +25,8 @@ class SquadQueue(commands.Cog):
 
         self.sq_times = []
 
+        self.prev_start_time = None
+
         self._que_scheduler = self.que_scheduler.start()
         self._scheduler_task = self.sqscheduler.start()
         self._msgqueue_task = self.send_queued_messages.start()
@@ -55,6 +57,8 @@ class SquadQueue(commands.Cog):
 
         self.SUB_MESSAGE_LIFETIME_SECONDS = bot.config["SUB_MESSAGE_LIFETIME_SECONDS"]
 
+        self.room_mmr_threshold = bot.config["ROOM_MMR_THRESHOLD"]
+
         # number of minutes before scheduled time that queue should open
         self.QUEUE_OPEN_TIME = timedelta(minutes=bot.config["QUEUE_OPEN_TIME"])
 
@@ -78,6 +82,14 @@ class SquadQueue(commands.Cog):
             self.bot.config["queue_list_channel"])
         self.HISTORY_CHANNEL = self.bot.get_channel(
             self.bot.config["queue_history_channel"])
+        try:
+            await self.LIST_CHANNEL.purge()
+        except:
+            print("Purging List channel failed", flush=True)
+        try:
+            await self.SUB_CHANNEL.purge()
+        except:
+            print("Purging Sub channel failed", flush=True)
         print(f"Server - {self.GUILD}", flush=True)
         print(f"Join Channel - {self.MOGI_CHANNEL}", flush=True)
         print(f"Sub Channel - {self.SUB_CHANNEL}", flush=True)
@@ -242,7 +254,7 @@ class SquadQueue(commands.Cog):
         if not is_room_thread:
             await interaction.response.send_message(f"More than {self.MOGI_LIFETIME} minutes have passed since mogi start, the Mogi Object has been deleted.", ephemeral=True)
             return
-        # msg = "<@&682445864400453739> - "
+        msg = ""
         if room.room_num == 1:
             msg += f"Room {room.room_num} is looking for a sub with mmr >{room.mmr_low - 500}\n"
         else:
@@ -373,10 +385,6 @@ class SquadQueue(commands.Cog):
         """The mogi currently gathering will be deleted.  The queue resumes at the next hour.  Staff use only."""
         self.scheduled_events = {}
         self.ongoing_events = {}
-        curr_time = datetime.now(timezone.utc)
-        truncated_time = curr_time.replace(
-            minute=0, second=0, microsecond=0)
-        self.QUEUE_TIME_BLOCKER = truncated_time + timedelta(hours=1)
         await self.lockdown(self.MOGI_CHANNEL)
         await interaction.response.send_message("The current Mogi has been canceled, the queue will resume at the next hour.")
 
@@ -394,6 +402,7 @@ class SquadQueue(commands.Cog):
         """Mogis will begin to be scheduled again.  Staff use only."""
         curr_time = datetime.now(timezone.utc)
         self.QUEUE_TIME_BLOCKER = curr_time
+        self.prev_start_time = None
         await interaction.response.send_message("Mogis will resume scheduling.")
 
     @app_commands.command(name="reset_bot")
@@ -512,7 +521,10 @@ class SquadQueue(commands.Cog):
         if num_created_rooms >= num_rooms:
             return
         for i in range(num_created_rooms, num_rooms):
-            room_name = f"{mogi.start_time.month}/{mogi.start_time.day}, {mogi.start_time.hour}:00:00 - Room {i+1}"
+            minute = mogi.start_time.minute
+            if len(str(minute)) == 1:
+                minute = '0' + str(minute)
+            room_name = f"{mogi.start_time.month}/{mogi.start_time.day}, {mogi.start_time.hour}:{minute}:00 - Room {i+1}"
             try:
                 room_channel = await mogi.mogi_channel.create_thread(name=room_name,
                                                                      auto_archive_duration=60,
@@ -570,8 +582,7 @@ class SquadQueue(commands.Cog):
             for j in range(teams_per_room):
                 msg += f"`{j+1}.` "
                 team = sorted_list[start_index+j]
-                player_list.append(
-                    sorted_list[start_index+j].get_first_player())
+                player_list.append(sorted_list[start_index+j].get_first_player())
                 msg += ", ".join([p.lounge_name for p in team.players])
                 msg += f" ({int(team.avg_mmr)} MMR)\n"
                 mentions += " ".join([p.member.mention for p in team.players])
@@ -579,24 +590,27 @@ class SquadQueue(commands.Cog):
             room_msg = msg
             mentions += " ".join([m.mention for m in extra_members if m is not None])
             room_msg += "\nVote for format FFA, 2v2, 3v3, or 4v4.\n"
-            # room_msg += "\nIf you need staff's assistance, use the `!staff` command in this channel.\n"
+            room_msg += "\nIf you need staff's assistance, use the `!staff` command in this channel.\n"
             room_msg += mentions
-            try:
-                curr_room = rooms[i]
-                room_channel = curr_room.thread
-                curr_room.teams = sorted_list[start_index:start_index+teams_per_room]
-                await room_channel.send(room_msg)
-                view = VoteView(player_list, room_channel, mogi)
-                curr_room.view = view
-                curr_room.mmr_low = player_list[11].mmr
-                curr_room.mmr_high = player_list[0].mmr
-                await room_channel.send(view=view)
-            except Exception as e:
-                print(e, flush=True)
-                err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
-                err_msg += mentions
-                msg += err_msg
-                room_channel = None
+            curr_room = rooms[i]
+            room_channel = curr_room.thread
+            curr_room.teams = sorted_list[start_index:start_index+teams_per_room]
+            curr_room.mmr_low = player_list[11].mmr
+            curr_room.mmr_high = player_list[0].mmr
+            if curr_room.mmr_high - curr_room.mmr_low > self.room_mmr_threshold:
+                msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold}MMR, this room has been cancelled."
+            else:
+                try:
+                    await room_channel.send(room_msg)
+                    view = VoteView(player_list, room_channel, mogi)
+                    curr_room.view = view
+                    await room_channel.send(view=view)
+                except Exception as e:
+                        print(e, flush=True)
+                        err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
+                        err_msg += mentions
+                        msg += err_msg
+                        room_channel = None
             try:
                 await mogi.mogi_channel.send(msg)
             except Exception as e:
@@ -709,35 +723,36 @@ class SquadQueue(commands.Cog):
 
         if self.GUILD is not None:
             curr_time = datetime.now(timezone.utc)
-            truncated_time = curr_time.replace(
-                minute=0, second=0, microsecond=0)
-            next_hour = truncated_time + timedelta(hours=1)
-            if len(self.sq_times) > 0 and next_hour == self.sq_times[0]:
+            start_time = curr_time + timedelta(minutes=65)
+            start_time = start_time.replace(minute=0, second=0, microsecond=0)
+            start_time -= self.QUEUE_OPEN_TIME
+            if self.prev_start_time:
+                start_time = self.prev_start_time
+            next_mogi_start = start_time + self.QUEUE_OPEN_TIME
+            if len(self.sq_times) > 0 and next_mogi_start == self.sq_times[0]:
                 self.sq_times.pop(0)
-                self.QUEUE_TIME_BLOCKER = next_hour
+                self.QUEUE_TIME_BLOCKER = next_mogi_start
                 await self.MOGI_CHANNEL.send("Squad Queue is currently going on at this hour!  The queue will remain closed.")
             if curr_time < self.QUEUE_TIME_BLOCKER:
                 # print(f"Mogi had been blocked from starting before the time limit {self.QUEUE_TIME_BLOCKER}", flush=True)
                 return
-            if datetime.now().minute >= self.bot.config["JOINING_TIME"]:
-                # print("Hourly Que is too late, starting Que at next hour", flush=True)
-                return
             for mogi in self.ongoing_events.values():
-                if mogi.start_time == next_hour:
+                if mogi.start_time == next_mogi_start:
                     return
-            event_start_time = next_hour.astimezone() - self.QUEUE_OPEN_TIME
-            if event_start_time < discord.utils.utcnow():
-                event_start_time = discord.utils.utcnow() + timedelta(minutes=1)
 
             mogi = Mogi(1, 1, self.MOGI_CHANNEL, is_automated=True,
-                        start_time=next_hour)
+                        start_time=next_mogi_start)
 
             if self.GUILD not in self.scheduled_events.keys():
                 self.scheduled_events[self.GUILD] = []
 
             self.scheduled_events[self.GUILD].append(mogi)
 
-            print(f"Started Queue for {next_hour}", flush=True)
+            self.QUEUE_TIME_BLOCKER = next_mogi_start
+
+            self.prev_start_time = next_mogi_start
+
+            print(f"Started Queue for {next_mogi_start}", flush=True)
 
     @tasks.loop(minutes=1)
     async def delete_old_mogis(self):
@@ -825,15 +840,12 @@ class SquadQueue(commands.Cog):
     @commands.command(name="debug_start_rooms")
     @commands.is_owner()
     async def debug_start_rooms(self, ctx):
-        truncated_time = datetime.now(timezone.utc).replace(
-            minute=0, second=0, microsecond=0)
-        next_hour = truncated_time + timedelta(hours=1)
         for mogi in self.ongoing_events.values():
-            if mogi.start_time == next_hour:
+            if mogi.start_time == self.prev_start_time:
                 await self.add_teams_to_rooms(mogi, (mogi.start_time.minute) % 60, True)
                 return
         for mogi in self.old_events.values():
-            if mogi.start_time == next_hour:
+            if mogi.start_time == self.prev_start_time:
                 await self.add_teams_to_rooms(mogi, (mogi.start_time.minute) % 60, True)
                 return
 
