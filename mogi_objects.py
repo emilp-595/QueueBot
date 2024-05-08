@@ -1,5 +1,7 @@
 import random
 import discord
+from datetime import datetime, timezone, timedelta
+import time
 from discord.ui import View
 
 
@@ -206,7 +208,17 @@ class VoteView(View):
             msg += team_text
             self.teams_text += team_text
 
-        msg += "Decide a host amongst yourselves; room open at :00, penalty at :08. Good luck!"
+        minutes = self.mogi.start_time.minute
+        pen = minutes + 10
+
+        if pen > 60:
+            pen -= 60
+
+        if pen < 10:
+            pen = '0' + str(pen)
+        if minutes < 10:
+            minutes = '0' + str(minutes)
+        msg += "Decide a host amongst yourselves; room open at :{}, penalty at :{}. Good luck!".format(minutes, pen)
 
         room.teams = teams
 

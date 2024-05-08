@@ -590,7 +590,6 @@ class SquadQueue(commands.Cog):
             room_msg = msg
             mentions += " ".join([m.mention for m in extra_members if m is not None])
             room_msg += "\nVote for format FFA, 2v2, 3v3, or 4v4.\n"
-            room_msg += "\nIf you need staff's assistance, use the `!staff` command in this channel.\n"
             room_msg += mentions
             curr_room = rooms[i]
             room_channel = curr_room.thread
