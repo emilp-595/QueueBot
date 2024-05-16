@@ -209,7 +209,7 @@ class VoteView(View):
             self.teams_text += team_text
 
         minutes = self.mogi.start_time.minute
-        pen = minutes + 10
+        pen = minutes + 8
 
         if pen > 60:
             pen -= 60

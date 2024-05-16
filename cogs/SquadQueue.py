@@ -205,7 +205,7 @@ class SquadQueue(commands.Cog):
             squad = Team(players)
             mogi.teams.append(squad)
 
-            msg += f"{players[0].lounge_name} joined queue for mogi {discord.utils.format_dt(mogi.start_time, style='R')}, `[{mogi.count_registered()} players]`"
+            msg += f"{players[0].lounge_name} joined queue closing at {discord.utils.format_dt(mogi.start_time - timedelta(minutes=self.QUEUE_OPEN_TIME - self.JOINING_TIME))}, `[{mogi.count_registered()} players]`"
 
             await interaction.followup.send(msg)
             await self.check_room_channels(mogi)
@@ -254,7 +254,7 @@ class SquadQueue(commands.Cog):
         if not is_room_thread:
             await interaction.response.send_message(f"More than {self.MOGI_LIFETIME} minutes have passed since mogi start, the Mogi Object has been deleted.", ephemeral=True)
             return
-        msg = ""
+        msg = "<@&1167985222533533817> - "
         if room.room_num == 1:
             msg += f"Room {room.room_num} is looking for a sub with mmr >{room.mmr_low - 500}\n"
         else:
@@ -404,6 +404,33 @@ class SquadQueue(commands.Cog):
         self.QUEUE_TIME_BLOCKER = curr_time
         self.prev_start_time = None
         await interaction.response.send_message("Mogis will resume scheduling.")
+    
+    @app_commands.command(name="change_event_time")
+    @app_commands.guild_only()
+    async def change_event_time(self, interaction: discord.Interaction, event_time: int):
+        """Change the amount of time for each event in the queue."""
+        if event_time > 15:
+            self.QUEUE_OPEN_TIME = timedelta(minutes=event_time)
+            self.JOINING_TIME = timedelta(minutes=event_time - 5)
+            await interaction.response.send_message(f"The amount of time for each mogi has been changed to {event_time} minutes.")
+        else:
+            await interaction.response.send_message("Please enter a number of minutes greater than 15.")
+
+    @app_commands.command(name="change_mmr_threshold")
+    @app_commands.guild_only()
+    async def change_mmr_threshold(self, interaction: discord.Interaction, mmr_threshold: int):
+        """Change the maximum MMR gap allowed for a room."""
+        self.room_mmr_threshold = mmr_threshold
+        await interaction.response.send_message(f"MMR Threshold for Queue Rooms has been modified to {mmr_threshold} MMR.")
+
+    @app_commands.command(name="peek_bot_config")
+    @app_commands.guild_only()
+    async def peek_bot_config(self, interaction: discord.Interaction):
+        """View the configured values for the Queue System."""
+        msg = ""
+        msg += f"Time for Each Event: {self.QUEUE_OPEN_TIME}, \n"
+        msg += f"Room MMR Threshold: {self.room_mmr_threshold}"
+        await interaction.response.send_message(msg)
 
     @app_commands.command(name="reset_bot")
     @app_commands.guild_only()
@@ -589,7 +616,7 @@ class SquadQueue(commands.Cog):
                 mentions += " "
             room_msg = msg
             mentions += " ".join([m.mention for m in extra_members if m is not None])
-            room_msg += "\nVote for format FFA, 2v2, 3v3, or 4v4.\n"
+            room_msg += "\nVote for format FFA, 2v2, 3v3, 4v4, or 6v6.\n"
             room_msg += mentions
             curr_room = rooms[i]
             room_channel = curr_room.thread
@@ -597,7 +624,7 @@ class SquadQueue(commands.Cog):
             curr_room.mmr_low = player_list[11].mmr
             curr_room.mmr_high = player_list[0].mmr
             if curr_room.mmr_high - curr_room.mmr_low > self.room_mmr_threshold:
-                msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold}MMR, this room has been cancelled."
+                msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
                 try:
                     await room_channel.send(room_msg)
