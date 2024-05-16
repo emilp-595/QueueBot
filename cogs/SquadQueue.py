@@ -205,7 +205,7 @@ class SquadQueue(commands.Cog):
             squad = Team(players)
             mogi.teams.append(squad)
 
-            msg += f"{players[0].lounge_name} joined queue closing at {discord.utils.format_dt(mogi.start_time - timedelta(minutes=self.QUEUE_OPEN_TIME - self.JOINING_TIME))}, `[{mogi.count_registered()} players]`"
+            msg += f"{players[0].lounge_name} joined queue closing at {discord.utils.format_dt(mogi.start_time - (self.QUEUE_OPEN_TIME - self.JOINING_TIME))}, `[{mogi.count_registered()} players]`"
 
             await interaction.followup.send(msg)
             await self.check_room_channels(mogi)
