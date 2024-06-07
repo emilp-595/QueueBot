@@ -166,6 +166,19 @@ class SquadQueue(commands.Cog):
             return False
         return True
 
+    @staticmethod
+    def queue_command_allowed(ctx_or_followup, mogi):
+        if mogi is None:
+            asyncio.create_task(ctx_or_followup.send("Queue has not started yet."))
+            return False
+        if not mogi.started:
+            asyncio.create_task(ctx_or_followup.send("Mogi has not been started yet... type !start"))
+            return False
+        if not mogi.gathering:
+            asyncio.create_task(ctx_or_followup.send("Mogi is closed; players cannot join or drop from the event"))
+            return False
+        return True
+
     @app_commands.command(name="c")
     @app_commands.guild_only()
     async def can(self, interaction: discord.Interaction):
@@ -173,8 +186,7 @@ class SquadQueue(commands.Cog):
         await interaction.response.defer()
         member = interaction.user
         mogi = self.get_mogi(interaction)
-        if mogi is None or not mogi.started or not mogi.gathering:
-            await interaction.followup.send("Queue has not started yet.")
+        if not SquadQueue.queue_command_allowed(interaction.followup, mogi):
             return
 
         player_team = mogi.check_player(member)
@@ -223,8 +235,7 @@ class SquadQueue(commands.Cog):
         await interaction.response.defer()
         
         mogi = self.get_mogi(interaction)
-        if mogi is None or not mogi.started or not mogi.gathering:
-            await interaction.followup.send("Queue has not started yet.")
+        if not SquadQueue.queue_command_allowed(interaction.followup, mogi):
             return
 
         member = interaction.user
@@ -368,8 +379,7 @@ class SquadQueue(commands.Cog):
         await interaction.response.defer()
         async with self.LOCK:
             mogi = self.get_mogi(interaction)
-            if mogi is None or not mogi.started or not mogi.gathering:
-                await interaction.followup.send("Queue has not started yet.")
+            if not SquadQueue.queue_command_allowed(interaction.followup, mogi):
                 return
 
             squad = mogi.check_player(member)
