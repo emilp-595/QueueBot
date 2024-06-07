@@ -216,24 +216,24 @@ class SquadQueue(commands.Cog):
     async def drop(self, interaction: discord.Interaction):
         """Remove user from mogi"""
         await interaction.response.defer()
-        async with self.LOCK:
-            mogi = self.get_mogi(interaction)
-            if mogi is None or not mogi.started or not mogi.gathering:
-                await interaction.followup.send("Queue has not started yet.")
-                return
+        
+        mogi = self.get_mogi(interaction)
+        if mogi is None or not mogi.started or not mogi.gathering:
+            await interaction.followup.send("Queue has not started yet.")
+            return
 
-            member = interaction.user
-            squad = mogi.check_player(member)
-            if squad is None:
-                await interaction.followup.send(f"{member.display_name} is not currently in this event; type `/c` to join")
-                return
-            mogi.teams.remove(squad)
-            msg = "Removed "
-            msg += ", ".join([p.lounge_name for p in squad.players])
-            msg += f" from the mogi {discord.utils.format_dt(mogi.start_time, style='R')}"
-            msg += f", `[{mogi.count_registered()} players]`"
+        member = interaction.user
+        squad = mogi.check_player(member)
+        if squad is None:
+            await interaction.followup.send(f"{member.display_name} is not currently in this event; type `/c` to join")
+            return
+        mogi.teams.remove(squad)
+        msg = "Removed "
+        msg += ", ".join([p.lounge_name for p in squad.players])
+        msg += f" from the mogi {discord.utils.format_dt(mogi.start_time, style='R')}"
+        msg += f", `[{mogi.count_registered()} players]`"
 
-            await interaction.followup.send(msg)
+        await interaction.followup.send(msg)
 
     @app_commands.command(name="sub")
     @app_commands.guild_only()
