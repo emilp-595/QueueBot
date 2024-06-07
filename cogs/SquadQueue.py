@@ -173,43 +173,50 @@ class SquadQueue(commands.Cog):
     async def can(self, interaction: discord.Interaction):
         """Join a mogi"""
         await interaction.response.defer()
-        async with self.LOCK:
-            member = interaction.user
-            mogi = self.get_mogi(interaction)
-            if mogi is None or not mogi.started or not mogi.gathering:
-                await interaction.followup.send("Queue has not started yet.")
-                return
+        member = interaction.user
+        mogi = self.get_mogi(interaction)
+        if mogi is None or not mogi.started or not mogi.gathering:
+            await interaction.followup.send("Queue has not started yet.")
+            return
 
-            player_team = mogi.check_player(member)
+        player_team = mogi.check_player(member)
+        if player_team is not None:
+            await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+            return
 
-            if player_team is not None:
-                await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
-                return
+        players = await mk8dx_150cc_mmr(self.URL, [member])
 
-            players = await mk8dx_150cc_mmr(self.URL, [member])
-
-            if len(players) == 0 or players[0] is None:
-                msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
-                msg += "Please try again.  If the problem continues then contact a staff member for help."
-                await interaction.followup.send(msg)
-                return
-
-            msg = ""
-            if players[0].mmr is None:
-                starting_player_mmr = 1500
-                players[0].mmr = starting_player_mmr
-                msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
-                msg += "If you believe this is a mistake, please contact a staff member for help.\n"
-
-            players[0].confirmed = True
-            squad = Team(players)
-            mogi.teams.append(squad)
-
-            msg += f"{players[0].lounge_name} joined queue closing at {discord.utils.format_dt(mogi.start_time - (self.QUEUE_OPEN_TIME - self.JOINING_TIME))}, `[{mogi.count_registered()} players]`"
-
+        # Since we have removed the asyncio lock,
+        # a second check is added to address the only possible race condition.
+        # This addresses if the player in question joined the queue with a 2nd command while we
+        # were pulling their rating
+        player_team = mogi.check_player(member)
+        if player_team is not None:
+            await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+            return
+        
+        if len(players) == 0 or players[0] is None:
+            msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
+            msg += "Please try again.  If the problem continues then contact a staff member for help."
             await interaction.followup.send(msg)
-            await self.check_room_channels(mogi)
-            await self.check_num_teams(mogi)
+            return
+
+        msg = ""
+        if players[0].mmr is None:
+            starting_player_mmr = 1500
+            players[0].mmr = starting_player_mmr
+            msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
+            msg += "If you believe this is a mistake, please contact a staff member for help.\n"
+
+        players[0].confirmed = True
+        squad = Team(players)
+        mogi.teams.append(squad)
+
+        msg += f"{players[0].lounge_name} joined queue closing at {discord.utils.format_dt(mogi.start_time - (self.QUEUE_OPEN_TIME - self.JOINING_TIME))}, `[{mogi.count_registered()} players]`"
+
+        await interaction.followup.send(msg)
+        await self.check_room_channels(mogi)
+        await self.check_num_teams(mogi)
 
     @app_commands.command(name="d")
     @app_commands.guild_only()
