@@ -152,9 +152,7 @@ class SquadQueue(commands.Cog):
             print(e)
 
     def get_mogi(self, ctx):
-        if ctx.channel in self.ongoing_events.keys():
-            return self.ongoing_events[ctx.channel]
-        return None
+        return self.ongoing_events.get(ctx.channel):
 
     async def is_started(self, ctx, mogi):
         if not mogi.started:
