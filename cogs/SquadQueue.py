@@ -152,9 +152,7 @@ class SquadQueue(commands.Cog):
             print(e)
 
     def get_mogi(self, ctx):
-        if ctx.channel in self.ongoing_events.keys():
-            return self.ongoing_events[ctx.channel]
-        return None
+        return self.ongoing_events.get(ctx.channel):
 
     async def is_started(self, ctx, mogi):
         if not mogi.started:
@@ -168,6 +166,29 @@ class SquadQueue(commands.Cog):
             return False
         return True
 
+    @staticmethod
+    def queue_command_allowed(ctx_or_followup, mogi):
+        if mogi is None:
+            asyncio.create_task(ctx_or_followup.send("Queue has not started yet."))
+            return False
+        if not mogi.started:
+            asyncio.create_task(ctx_or_followup.send("Mogi has not been started yet... type !start"))
+            return False
+        if not mogi.gathering:
+            asyncio.create_task(ctx_or_followup.send("Mogi is closed; players cannot join or drop from the event"))
+            return False
+        return True
+        
+    @staticmethod
+    def player_queued_check(interaction, mogi, member, queued=True):
+        if queued and mogi.check_player(member) is not None:
+            asyncio.create_task(interaction.followup.send(f"{interaction.user.mention} is already signed up."))
+            return False
+        if not queued and mogi.check_player(member) is None:
+            asyncio.create_task(interaction.followup.send(f"{member.display_name} is not currently in this event; type `/c` to join"))
+            return False
+        return True
+
     @app_commands.command(name="c")
     @app_commands.guild_only()
     async def can(self, interaction: discord.Interaction):
@@ -175,13 +196,9 @@ class SquadQueue(commands.Cog):
         await interaction.response.defer()
         member = interaction.user
         mogi = self.get_mogi(interaction)
-        if mogi is None or not mogi.started or not mogi.gathering:
-            await interaction.followup.send("Queue has not started yet.")
+        if not SquadQueue.queue_command_allowed(interaction.followup, mogi):
             return
-
-        player_team = mogi.check_player(member)
-        if player_team is not None:
-            await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+        if not SquadQueue.player_queued_check(interaction, mogi, member, queued=False):
             return
 
         players = await mk8dx_150cc_mmr(self.URL, [member])
@@ -190,9 +207,9 @@ class SquadQueue(commands.Cog):
         # a second check is added to address the only possible race condition.
         # This addresses if the player in question joined the queue with a 2nd command while we
         # were pulling their rating
-        player_team = mogi.check_player(member)
-        if player_team is not None:
-            await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+        if not SquadQueue.queue_command_allowed(interaction.followup, mogi):
+            return
+        if not SquadQueue.player_queued_check(interaction, mogi, member, queued=False):
             return
         
         if len(players) == 0 or players[0] is None:
@@ -225,15 +242,13 @@ class SquadQueue(commands.Cog):
         await interaction.response.defer()
         
         mogi = self.get_mogi(interaction)
-        if mogi is None or not mogi.started or not mogi.gathering:
-            await interaction.followup.send("Queue has not started yet.")
-            return
-
         member = interaction.user
-        squad = mogi.check_player(member)
-        if squad is None:
-            await interaction.followup.send(f"{member.display_name} is not currently in this event; type `/c` to join")
+        if not SquadQueue.queue_command_allowed(interaction.followup, mogi):
             return
+        if not SquadQueue.player_queued_check(interaction, mogi, member, queued=True):
+            return
+            
+        squad = mogi.check_player(member)
         mogi.teams.remove(squad)
         msg = "Removed "
         msg += ", ".join([p.lounge_name for p in squad.players])
@@ -370,14 +385,11 @@ class SquadQueue(commands.Cog):
         await interaction.response.defer()
         async with self.LOCK:
             mogi = self.get_mogi(interaction)
-            if mogi is None or not mogi.started or not mogi.gathering:
-                await interaction.followup.send("Queue has not started yet.")
+            if not SquadQueue.queue_command_allowed(interaction.followup, mogi):
                 return
-
+            if not SquadQueue.player_queued_check(interaction, mogi, member, queued=True):
+                return
             squad = mogi.check_player(member)
-            if squad is None:
-                await interaction.followup.send(f"{member.display_name} is not currently in this event; type `/c` to join")
-                return
             mogi.teams.remove(squad)
             msg = "Staff has removed "
             msg += ", ".join([p.lounge_name for p in squad.players])
