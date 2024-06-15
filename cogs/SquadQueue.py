@@ -1,3 +1,4 @@
+import aiohttp
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -8,9 +9,13 @@ import json
 from mmr import mk8dx_150cc_mmr, get_mmr_from_discord_id
 from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier
 import asyncio
+from collections import defaultdict
+
+headers = {'Content-type': 'application/json'}
 
 # Scheduled_Event = collections.namedtuple('Scheduled_Event', 'size time started mogi_channel')
 
+cooldowns = defaultdict(int)
 
 class SquadQueue(commands.Cog):
     def __init__(self, bot):
@@ -49,6 +54,8 @@ class SquadQueue(commands.Cog):
 
         self.HISTORY_CHANNEL = None
 
+        self.GENERAL_CHANNEL = None
+
         self.LOCK = asyncio.Lock()
 
         self.URL = bot.config["url"]
@@ -58,6 +65,8 @@ class SquadQueue(commands.Cog):
         self.SUB_MESSAGE_LIFETIME_SECONDS = bot.config["SUB_MESSAGE_LIFETIME_SECONDS"]
 
         self.room_mmr_threshold = bot.config["ROOM_MMR_THRESHOLD"]
+
+        self.TIER_INFO = []
 
         # number of minutes before scheduled time that queue should open
         self.QUEUE_OPEN_TIME = timedelta(minutes=bot.config["QUEUE_OPEN_TIME"])
@@ -82,6 +91,9 @@ class SquadQueue(commands.Cog):
             self.bot.config["queue_list_channel"])
         self.HISTORY_CHANNEL = self.bot.get_channel(
             self.bot.config["queue_history_channel"])
+        self.GENERAL_CHANNEL = self.bot.get_channel(
+            self.bot.config["queue_general_channel"])
+        await self.get_ladder_info()
         try:
             await self.LIST_CHANNEL.purge()
         except:
@@ -95,7 +107,9 @@ class SquadQueue(commands.Cog):
         print(f"Sub Channel - {self.SUB_CHANNEL}", flush=True)
         print(f"List Channel - {self.LIST_CHANNEL}", flush=True)
         print(f"History Channel - {self.HISTORY_CHANNEL}", flush=True)
+        print(f"General Channel - {self.GENERAL_CHANNEL}", flush=True)
         print("Ready!", flush=True)
+    
 
     async def lockdown(self, channel: discord.TextChannel):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
@@ -182,24 +196,23 @@ class SquadQueue(commands.Cog):
 
             player_team = mogi.check_player(member)
 
-            if player_team is not None:
-                await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
-                return
-
-            players = await mk8dx_150cc_mmr(self.URL, [member])
-
-            if len(players) == 0 or players[0] is None:
-                msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
-                msg += "Please try again.  If the problem continues then contact a staff member for help."
-                await interaction.followup.send(msg)
-                return
-
+            players = []
             msg = ""
-            if players[0].mmr is None:
-                starting_player_mmr = 1500
-                players[0].mmr = starting_player_mmr
+            placement_role_id = 723753340063842345
+            if member.get_role(placement_role_id):
+                starting_player_mmr = 750
+                player = Player(member, member.display_name, starting_player_mmr)
+                players.append(player)
                 msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
                 msg += "If you believe this is a mistake, please contact a staff member for help.\n"
+            else:    
+                players = await mk8dx_150cc_mmr(self.URL, [member])
+
+                if len(players) == 0 or players[0] is None:
+                    msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
+                    msg += "Please try again.  If the problem continues then contact a staff member for help."
+                    await interaction.followup.send(msg)
+                    return
 
             players[0].confirmed = True
             squad = Team(players)
@@ -237,38 +250,56 @@ class SquadQueue(commands.Cog):
 
     @app_commands.command(name="sub")
     @app_commands.guild_only()
+    # @commands.cooldown(rate=1, per=120, type=commands.BucketType.user)
     async def sub(self, interaction: discord.Interaction):
         """Sends out a request for a sub in the sub channel. Only works in thread channels for SQ rooms."""
+        current_time = time.time()
+        lastCommandTime = cooldowns.get(interaction.user.id)
+        print(lastCommandTime, flush=True)
+        if lastCommandTime == None:
+            lastCommandTime = 0
+        
+        if (current_time - lastCommandTime) < 120: #Cooldown timer in seconds
+            await interaction.response.send_message(f"You are still on cooldown. Please wait for {int(2 * 60 - (current_time - lastCommandTime))} more seconds to use this command again.", ephemeral=True)
+            return
+        
         is_room_thread = False
         room = None
+        bottom_room_num = 1
         for mogi in self.ongoing_events.values():
             if mogi.is_room_thread(interaction.channel_id):
                 room = mogi.get_room_from_thread(interaction.channel_id)
+                bottom_room_num = len(mogi.rooms)
                 is_room_thread = True
                 break
         for mogi in self.old_events.values():
             if mogi.is_room_thread(interaction.channel.id):
                 room = mogi.get_room_from_thread(interaction.channel.id)
+                bottom_room_num = len(mogi.rooms)
                 is_room_thread = True
                 break
         if not is_room_thread:
             await interaction.response.send_message(f"More than {self.MOGI_LIFETIME} minutes have passed since mogi start, the Mogi Object has been deleted.", ephemeral=True)
             return
         msg = "<@&1167985222533533817> - "
-        if room.room_num == 1:
-            msg += f"Room {room.room_num} is looking for a sub with mmr >{room.mmr_low - 500}\n"
+        if bottom_room_num == 1:
+            msg += f"Room 1 is looking for a sub with any mmr\n"
+        elif room.room_num == 1:
+            msg += f"Room 1 is looking for a sub with mmr >{room.mmr_low - 500}\n"
+        elif room.room_num == bottom_room_num:
+            msg += f"Room {room.room_num} is looking for a sub with mmr <{room.mmr_high + 500}\n"  
         else:
-            # low = 0 if room.mmr_low < 500 else room.mmr_low - 500
             msg += f"Room {room.room_num} is looking for a sub with range {room.mmr_low - 500}-{room.mmr_high + 500}\n"
         message_delete_date = datetime.now(
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
         await self.SUB_CHANNEL.send(msg, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
-        view = JoinView(room, get_mmr_from_discord_id)
+        view = JoinView(room, get_mmr_from_discord_id, bottom_room_num)
         await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
+        cooldowns[interaction.user.id] = current_time #Updates cooldown
         await interaction.response.send_message("Sent out request for sub.")
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(seconds=30)
     async def list_task(self):
         """Continually display the list of confirmed players for a mogi in the history channel"""
         if len(self.ongoing_events) > 0:
@@ -279,19 +310,30 @@ class SquadQueue(commands.Cog):
 
                 mogi_list = mogi.confirmed_list()
 
+                # Remove late players from the list to display separately
+                full_list_length = len(mogi_list)
+                num_of_rooms = full_list_length // 12 
+                num_confirmed_players = num_of_rooms * 12
+                num_late_players = full_list_length - num_confirmed_players
+                late_players = []
+                for i in range(num_confirmed_players, full_list_length):
+                    player = mogi_list.pop()
+                    late_players.append(player)
+
                 sorted_mogi_list = sorted(mogi_list, reverse=True)
-                msg = "Current Mogi List:\n"
+                msg = f"**Last Updated:** {discord.utils.format_dt(datetime.now(timezone.utc), style='R')}\n\n"
+                msg += "**Current Mogi List:**\n"
                 for i in range(len(sorted_mogi_list)):
                     msg += f"{i+1}) "
                     msg += ", ".join([p.lounge_name for p in sorted_mogi_list[i].players])
                     msg += f" ({sorted_mogi_list[i].players[0].mmr} MMR)\n"
                     if ((i + 1) % 12 == 0):
                         msg += "ㅤ\n"
-                if (len(sorted_mogi_list) % (12/mogi.size) != 0):
-                    num_next = int(len(sorted_mogi_list) % (12/mogi.size))
-                    teams_per_room = int(12/mogi.size)
-                    num_rooms = int(len(sorted_mogi_list) / (12/mogi.size))+1
-                    msg += f"[{num_next}/{teams_per_room}] players for {num_rooms} room(s)"
+                msg += "**Late Players:**\n"
+                for i in range(len(late_players)):
+                    msg += f"{i+1}) "
+                    msg += ", ".join([p.lounge_name for p in late_players[i].players])
+                    msg += f" ({late_players[i].players[0].mmr} MMR)\n"
                 message = msg.split("\n")
 
                 new_messages = []
@@ -301,7 +343,7 @@ class SquadQueue(commands.Cog):
                         new_messages.append(bulk_msg)
                         bulk_msg = ""
                     bulk_msg += message[i] + "\n"
-                if len(bulk_msg) > 0:
+                if len(bulk_msg) > 0 and bulk_msg != "\n":
                     new_messages.append(bulk_msg)
 
                 await self.delete_list_messages(len(new_messages))
@@ -494,6 +536,50 @@ class SquadQueue(commands.Cog):
         self.sq_times = []
 
         await interaction.response.send_message("Cleared list of Squad Queue Times.")
+    
+    @app_commands.command(name="update_tier_info")
+    @app_commands.guild_only()
+    async def update_tier_info(self, interaction: discord.Interaction):
+        """Updates the info on each tier"""
+        #await self.get_ladder_info()
+        msg = await self.get_ladder_info()
+        await interaction.response.send_message(msg)
+
+    async def get_ladder_info(self):
+        timeout = aiohttp.ClientTimeout(total=10)
+        url = "https://mkwlounge.gg/api/ladderclass.php?ladder_type=rt"
+        msg = ""
+        try:
+            async with aiohttp.ClientSession(
+                timeout = timeout,
+                auth=aiohttp.BasicAuth(
+                    "username", "password")) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status != 200:
+                        raise Exception(
+                            "Fetch for tier info has failed, bad status code")
+                    result = await resp.json()
+                    if result['status'] != "success":
+                        raise Exception(
+                            "Fetch for tier info has failed, Status: Failure")
+                    self.TIER_INFO = result["results"]
+                    msg += "Fetch for Tier Info Successful.\n"
+                    for tier in self.TIER_INFO:
+                        boundary = ""
+                        if tier["minimum_mmr"]:
+                            boundary += f"{tier['minimum_mmr']}-"
+                        else:
+                            boundary += "<"
+                        if tier["maximum_mmr"]:
+                            boundary += f"{tier['maximum_mmr']}"
+                        else:
+                            boundary = f">{tier['minimum_mmr']}"
+                        msg += f"T{tier['ladder_order']} Boundary: {boundary}\n"
+                    print(msg, flush=True)
+                    return msg
+        except Exception as e:
+            print(e, flush=True)
+
 
     # check if user has roles defined in config.json
     async def has_roles(self, member: discord.Member, guild_id: int, config):
@@ -553,7 +639,7 @@ class SquadQueue(commands.Cog):
                 minute = '0' + str(minute)
             room_name = f"{mogi.start_time.month}/{mogi.start_time.day}, {mogi.start_time.hour}:{minute}:00 - Room {i+1}"
             try:
-                room_channel = await mogi.mogi_channel.create_thread(name=room_name,
+                room_channel = await self.GENERAL_CHANNEL.create_thread(name=room_name,
                                                                      auto_archive_duration=60,
                                                                      invitable=False)
             except Exception as e:
@@ -599,6 +685,11 @@ class SquadQueue(commands.Cog):
                 mogi.mogi_channel.guild.id)]
             for m in extra_members_ids:
                 extra_members.append(mogi.mogi_channel.guild.get_member(m))
+        if str(mogi.mogi_channel.guild.id) in self.bot.config["roles_for_channels"].keys():
+            extra_roles_ids = self.bot.config["roles_for_channels"][str(
+                mogi.mogi_channel.guild.id)]
+            for r in extra_roles_ids:
+                extra_members.append(mogi.mogi_channel.guild.get_role(r))
 
         rooms = mogi.rooms
         for i in range(num_rooms):
@@ -628,7 +719,7 @@ class SquadQueue(commands.Cog):
             else:
                 try:
                     await room_channel.send(room_msg)
-                    view = VoteView(player_list, room_channel, mogi)
+                    view = VoteView(player_list, room_channel, mogi, self.TIER_INFO)
                     curr_room.view = view
                     await room_channel.send(view=view)
                 except Exception as e:
@@ -878,3 +969,7 @@ class SquadQueue(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(SquadQueue(bot))
+
+
+    
+

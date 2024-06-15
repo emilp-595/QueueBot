@@ -73,6 +73,8 @@ class Room:
         self.mmr_low = None
         self.view = None
         self.finished = False
+    def get_player_list(self):
+        return [player.member.id for team in self.teams for player in team.players]
 
 
 class Team:
@@ -153,7 +155,7 @@ class Player:
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi):
+    def __init__(self, players, thread, mogi, tier_info):
         super().__init__()
         self.players = players
         self.thread = thread
@@ -161,6 +163,7 @@ class VoteView(View):
         self.header_text = ""
         self.teams_text = ""
         self.found_winner = False
+        self.tier_info = tier_info
         self.__setattr__("FFA", [])
         self.__setattr__("2v2", [])
         self.__setattr__("3v3", [])
@@ -185,7 +188,7 @@ class VoteView(View):
 
         room_mmr = round(sum([p.mmr for p in self.players]) / 12)
         room.mmr_average = room_mmr
-        self.header_text = f"**Room {room.room_num} MMR: {room_mmr} - {get_tier(room_mmr)}** "
+        self.header_text = f"**Room {room.room_num} MMR: {room_mmr} - T{get_tier(room_mmr, self.tier_info)}** "
         msg += self.header_text
         msg += "\n"
 
@@ -377,7 +380,7 @@ class VoteView(View):
 
 
 class JoinView(View):
-    def __init__(self, room, get_mmr):
+    def __init__(self, room: Room, get_mmr, bottom_room_num):
         super().__init__(timeout=1200)
         self.room = room
         self.get_mmr = get_mmr
@@ -385,10 +388,15 @@ class JoinView(View):
     @discord.ui.button(label="Join Room")
     async def button_callback(self, interaction, button):
         await interaction.response.defer()
-        muted_role_id = 600495108999086090
-        if interaction.user.get_role(muted_role_id):
+        muted_role_id = 434887701662007296
+        restricted_role_id = 797208908153618452
+        if interaction.user.get_role(muted_role_id) or interaction.user.get_role(restricted_role_id):
             await interaction.followup.send(
-                "Players with the muted role cannot use the sub button.", ephemeral=True)
+                "Players with the muted or restricted role cannot use the sub button.", ephemeral=True)
+            return
+        if interaction.user.id in self.room.get_player_list():
+            await interaction.followup.send(
+                "You are already in this room.", ephemeral=True)
             return
         try:
             user_mmr = await self.get_mmr(interaction.user.id)
@@ -398,6 +406,8 @@ class JoinView(View):
             return
         if self.room.room_num == 1:
             self.room.mmr_high = 999999
+        if self.room.room_num == bottom_room_num:
+            self.room.mmr_low = -999999
         if isinstance(user_mmr, int) and user_mmr < self.room.mmr_high + 500 and user_mmr > self.room.mmr_low - 500:
             button.disabled = True
             await interaction.followup.edit_message(interaction.message.id, view=self)
@@ -408,18 +418,7 @@ class JoinView(View):
                 "You do not meet room requirements", ephemeral=True)
 
 
-def get_tier(mmr: int):
-    if mmr > 11000:
-        return 'T7'
-    if mmr > 9500:
-        return 'T6'
-    if mmr > 7500:
-        return 'T5'
-    if mmr > 6250:
-        return 'T4'
-    if mmr > 5000:
-        return 'T3'
-    if mmr > 3500:
-        return 'T2'
-    else:
-        return 'T1'
+def get_tier(mmr: int, tier_info):
+    for tier in tier_info:
+        if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
+            return tier["ladder_order"]
