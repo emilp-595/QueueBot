@@ -384,6 +384,7 @@ class JoinView(View):
         super().__init__(timeout=1200)
         self.room = room
         self.get_mmr = get_mmr
+        self.bottom_room_num = bottom_room_num
 
     @discord.ui.button(label="Join Room")
     async def button_callback(self, interaction, button):
@@ -406,7 +407,7 @@ class JoinView(View):
             return
         if self.room.room_num == 1:
             self.room.mmr_high = 999999
-        if self.room.room_num == bottom_room_num:
+        if self.room.room_num == self.bottom_room_num:
             self.room.mmr_low = -999999
         if isinstance(user_mmr, int) and user_mmr < self.room.mmr_high + 500 and user_mmr > self.room.mmr_low - 500:
             button.disabled = True

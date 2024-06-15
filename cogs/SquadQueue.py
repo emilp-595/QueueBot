@@ -170,6 +170,12 @@ class SquadQueue(commands.Cog):
             return self.ongoing_events[ctx.channel]
         return None
 
+    def is_staff(self, member):
+        for staff_role in self.bot.config["staff_roles"]:
+            if member.get_role(staff_role):
+                return True
+        return False
+
     async def is_started(self, ctx, mogi):
         if not mogi.started:
             await ctx.send("Mogi has not been started yet... type !start")
@@ -195,6 +201,10 @@ class SquadQueue(commands.Cog):
                 return
 
             player_team = mogi.check_player(member)
+
+            if player_team is not None:
+                await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+                return
 
             players = []
             msg = ""
@@ -259,7 +269,7 @@ class SquadQueue(commands.Cog):
         if lastCommandTime == None:
             lastCommandTime = 0
         
-        if (current_time - lastCommandTime) < 120: #Cooldown timer in seconds
+        if (current_time - lastCommandTime) < 120 and not self.is_staff(interaction.user): #Cooldown timer in seconds
             await interaction.response.send_message(f"You are still on cooldown. Please wait for {int(2 * 60 - (current_time - lastCommandTime))} more seconds to use this command again.", ephemeral=True)
             return
         
@@ -965,6 +975,7 @@ class SquadQueue(commands.Cog):
             if mogi.start_time == self.prev_start_time:
                 await self.add_teams_to_rooms(mogi, (mogi.start_time.minute) % 60, True)
                 return
+    
 
 
 async def setup(bot):
