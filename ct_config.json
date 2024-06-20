@@ -7,11 +7,11 @@
             "Lounge Staff"
         ]
     },
-    "queue_join_channel": 1215174119767932979,
-    "queue_sub_channel": 1215174160234315806,
-    "queue_list_channel": 1215174057453162496,
-    "queue_history_channel": 1225709377747685477,
-    "queue_general_channel": 1241842559429513361,
+    "queue_join_channel": 1253109700107567155,
+    "queue_sub_channel": 1253109752418930779,
+    "queue_list_channel": 1253109466027655338,
+    "queue_history_channel": 1253109800196243618,
+    "queue_general_channel": 1253109398193045534,
     "members_for_channels": {
         "387347467332485122": [
             235148962103951360,
@@ -27,8 +27,8 @@
     },
     "roles_for_channels": {
         "387347467332485122": [
-            393600567781621761,
-            389252697284542465
+            520808645252874240,
+            520808674411937792
         ]
     },
     "staff_roles": [
@@ -44,10 +44,10 @@
     "username": "username",
     "password": "password",
     "url": "https://www.mkwlounge.gg",
-    "track_type": "rt",
+    "track_type": "ct",
     "TIME_ADJUSTMENT": 0,
-    "QUEUE_OPEN_TIME": 72,
-    "JOINING_TIME": 67,
+    "QUEUE_OPEN_TIME": 90,
+    "JOINING_TIME": 85,
     "EXTENSION_TIME": 5,
     "MOGI_LIFETIME": 180,
     "SUB_MESSAGE_LIFETIME_SECONDS": 1200,

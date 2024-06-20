@@ -6,7 +6,7 @@ from dateutil.parser import parse
 from datetime import datetime, timezone, timedelta
 import time
 import json
-from mmr import mk8dx_150cc_mmr, get_mmr_from_discord_id
+from mmr import mkw_mmr, get_mmr_from_discord_id
 from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier
 import asyncio
 from collections import defaultdict
@@ -65,6 +65,8 @@ class SquadQueue(commands.Cog):
         self.SUB_MESSAGE_LIFETIME_SECONDS = bot.config["SUB_MESSAGE_LIFETIME_SECONDS"]
 
         self.room_mmr_threshold = bot.config["ROOM_MMR_THRESHOLD"]
+
+        self.TRACK_TYPE = bot.config["track_type"]
 
         self.TIER_INFO = []
 
@@ -216,7 +218,7 @@ class SquadQueue(commands.Cog):
                 msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
                 msg += "If you believe this is a mistake, please contact a staff member for help.\n"
             else:    
-                players = await mk8dx_150cc_mmr(self.URL, [member])
+                players = await mkw_mmr(self.URL, [member], self.TRACK_TYPE)
 
                 if len(players) == 0 or players[0] is None:
                     msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
@@ -557,7 +559,7 @@ class SquadQueue(commands.Cog):
 
     async def get_ladder_info(self):
         timeout = aiohttp.ClientTimeout(total=10)
-        url = "https://mkwlounge.gg/api/ladderclass.php?ladder_type=rt"
+        url = "https://mkwlounge.gg/api/ladderclass.php?ladder_type=" + self.TRACK_TYPE
         msg = ""
         try:
             async with aiohttp.ClientSession(
@@ -928,7 +930,7 @@ class SquadQueue(commands.Cog):
 
         check_players = [ctx.author]
         check_players.extend(members)
-        players = await mk8dx_150cc_mmr(self.URL, check_players)
+        players = await mkw_mmr(self.URL, check_players, self.TRACK_TYPE)
         for i in range(0, 12):
             player = Player(
                 players[0].member, f"{players[0].lounge_name}{i + 1}", players[0].mmr + (10 * i))
@@ -952,7 +954,7 @@ class SquadQueue(commands.Cog):
 
         check_players = [ctx.author]
         check_players.extend(members)
-        players = await mk8dx_150cc_mmr(self.URL, check_players)
+        players = await mkw_mmr(self.URL, check_players, self.TRACK_TYPE)
         for i in range(0, 100):
             player = Player(
                 players[0].member, f"{players[0].lounge_name}{i + 1}", players[0].mmr + (10 * i))

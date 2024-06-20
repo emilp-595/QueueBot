@@ -43,11 +43,12 @@
     "username": "username",
     "password": "password",
     "url": "https://www.mkwlounge.gg",
+    "track_type": "rt",
     "TIME_ADJUSTMENT": 0,
     "QUEUE_OPEN_TIME": 72,
     "JOINING_TIME": 67,
-    "EXTENSION_TIME": 3,
+    "EXTENSION_TIME": 5,
     "MOGI_LIFETIME": 180,
     "SUB_MESSAGE_LIFETIME_SECONDS": 1200,
-    "ROOM_MMR_THRESHOLD": 8000
+    "ROOM_MMR_THRESHOLD": 9000
 }

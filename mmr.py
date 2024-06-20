@@ -5,8 +5,9 @@ from mogi_objects import Player
 headers = {'Content-type': 'application/json'}
 
 
-async def mk8dx_150cc_mmr(url, members):
-    base_url = url + '/api/ladderplayer.php?ladder_type=rt&'
+async def mkw_mmr(url, members, track_type):
+    tracks = track_type
+    base_url = url + '/api/ladderplayer.php?ladder_type=' + tracks + '&'
     players = []
     timeout = aiohttp.ClientTimeout(total=10)
     try:
@@ -34,8 +35,9 @@ async def mk8dx_150cc_mmr(url, members):
     return players
 
 
-async def get_mmr_from_discord_id(discord_id):
-    base_url = "https://www.mkwlounge.gg" + '/api/ladderplayer.php?ladder_type=rt&'
+async def get_mmr_from_discord_id(discord_id, track_type):
+    tracks = track_type
+    base_url = "https://www.mkwlounge.gg" + '/api/ladderplayer.php?ladder_type=' + tracks + '&'
     timeout = aiohttp.ClientTimeout(total=10)
     async with aiohttp.ClientSession(
         timeout=timeout,
