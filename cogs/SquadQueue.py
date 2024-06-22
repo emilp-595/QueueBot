@@ -178,11 +178,8 @@ class SquadQueue(commands.Cog):
             return self.ongoing_events[ctx.channel]
         return None
 
-    def is_staff(self, member):
-        for staff_role in self.bot.config["staff_roles"]:
-            if member.get_role(staff_role):
-                return True
-        return False
+    def is_staff(self, member: discord.Member):
+        return any(member.get_role(staff_role) for staff_role in self.bot.config["staff_roles"])
 
     async def is_started(self, ctx, mogi):
         if not mogi.started:
