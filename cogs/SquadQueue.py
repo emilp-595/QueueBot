@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import aiohttp
 import discord
 from discord.ext import commands, tasks
@@ -10,6 +12,8 @@ from mmr import mkw_mmr, get_mmr_from_discord_id
 from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier
 import asyncio
 from collections import defaultdict
+from typing import Dict, List
+import traceback
 
 headers = {'Content-type': 'application/json'}
 
