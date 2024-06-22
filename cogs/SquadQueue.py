@@ -180,13 +180,13 @@ class SquadQueue(commands.Cog):
     def is_staff(self, member: discord.Member):
         return any(member.get_role(staff_role) for staff_role in self.bot.config["staff_roles"])
 
-    async def is_started(self, ctx, mogi):
+    async def is_started(self, ctx, mogi: Mogi):
         if not mogi.started:
             await ctx.send("Mogi has not been started yet... type !start")
             return False
         return True
 
-    async def is_gathering(self, ctx, mogi):
+    async def is_gathering(self, ctx, mogi: Mogi):
         if not mogi.gathering:
             await ctx.send("Mogi is closed; players cannot join or drop from the event")
             return False
@@ -261,6 +261,7 @@ class SquadQueue(commands.Cog):
             msg += f", `[{mogi.count_registered()} players]`"
 
             await interaction.followup.send(msg)
+            await self.check_num_teams(mogi)
 
     @app_commands.command(name="sub")
     @app_commands.guild_only()
@@ -746,7 +747,7 @@ class SquadQueue(commands.Cog):
             except Exception as e:
                 print(
                     f"Mogi Channel message for room {i+1} has failed to send.", flush=True)
-                print(e, flush=True)
+                print(traceback.format_exc())
         if num_teams < mogi.count_registered():
             missed_teams = mogi.confirmed_list(
             )[num_teams:mogi.count_registered()]
@@ -759,10 +760,10 @@ class SquadQueue(commands.Cog):
                 await mogi.mogi_channel.send(msg)
             except Exception as e:
                 print("Late Player message has failed to send.", flush=True)
-                print(e, flush=True)
         await asyncio.sleep(120)
         await self.end_voting()
         await self.write_history()
+                print(traceback.format_exc())
 
     async def check_num_teams(self, mogi):
         if not mogi.gathering or not mogi.is_automated:
@@ -832,7 +833,6 @@ class SquadQueue(commands.Cog):
         # This coroutine *silently* fails and stops if exceptions aren't caught - an annoying abtraction of asyncio
         # This is unacceptable considering people are relying on these mogis to run, so we will not allow this routine to stop
         try:
-            print(f"{datetime.now()}: sqscheduler ran")
             if self.ongoing_event is None:
                 await self.schedule_que_event()
         except Exception as e:
@@ -900,7 +900,7 @@ class SquadQueue(commands.Cog):
         except Exception as e:
             print(traceback.format_exc())
 
-    def get_event_str(self, mogi):
+    def get_event_str(self, mogi: Mogi):
         mogi_time = discord.utils.format_dt(mogi.start_time, style="F")
         mogi_time_relative = discord.utils.format_dt(
             mogi.start_time, style="R")
