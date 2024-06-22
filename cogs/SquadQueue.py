@@ -36,7 +36,6 @@ class SquadQueue(commands.Cog):
 
         self.prev_start_time = None
 
-        self._que_scheduler = self.que_scheduler.start()
         self._scheduler_task = self.sqscheduler.start()
         self._msgqueue_task = self.send_queued_messages.start()
         self._list_task = self.list_task.start()
@@ -833,6 +832,12 @@ class SquadQueue(commands.Cog):
         # This coroutine *silently* fails and stops if exceptions aren't caught - an annoying abtraction of asyncio
         # This is unacceptable considering people are relying on these mogis to run, so we will not allow this routine to stop
         try:
+            print(f"{datetime.now()}: sqscheduler ran")
+            if self.ongoing_event is None:
+                await self.schedule_que_event()
+        except Exception as e:
+            print(traceback.format_exc())
+        try:
             await self.scheduler_mogi_start()
         except Exception as e:
             print(traceback.format_exc())
@@ -841,13 +846,6 @@ class SquadQueue(commands.Cog):
         except Exception as e:
             print(traceback.format_exc())
 
-    @tasks.loop(minutes=1)
-    async def que_scheduler(self):
-        try:
-            if not self.scheduled_events or len(self.scheduled_events[self.GUILD]) == 0:
-                await self.schedule_que_event()
-        except Exception as e:
-            print(e)
 
     async def schedule_que_event(self):
         """Schedules queue for the next hour in the given channel."""
