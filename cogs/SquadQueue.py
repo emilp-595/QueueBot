@@ -100,10 +100,12 @@ class SquadQueue(commands.Cog):
             await self.LIST_CHANNEL.purge()
         except:
             print("Purging List channel failed", flush=True)
+            print(traceback.format_exc())
         try:
             await self.SUB_CHANNEL.purge()
         except:
             print("Purging Sub channel failed", flush=True)
+            print(traceback.format_exc())
         print(f"Server - {self.GUILD}", flush=True)
         print(f"Join Channel - {self.MOGI_CHANNEL}", flush=True)
         print(f"Sub Channel - {self.SUB_CHANNEL}", flush=True)
@@ -123,7 +125,7 @@ class SquadQueue(commands.Cog):
             await channel.set_permissions(channel.guild.default_role, overwrite=overwrite)
             await channel.send("Locked down " + channel.mention)
         except Exception as e:
-            print(e, flush=True)
+            print(traceback.format_exc())
 
     async def unlockdown(self, channel: discord.TextChannel):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
@@ -165,7 +167,7 @@ class SquadQueue(commands.Cog):
                 for i in range(len(sentmsgs)-1, -1, -1):
                     await channel.send(sentmsgs[i])
         except Exception as e:
-            print(e)
+            print(traceback.format_exc())
 
     def get_mogi(self, ctx):
         if ctx.channel in self.ongoing_events.keys():
@@ -384,7 +386,7 @@ class SquadQueue(commands.Cog):
             if self.LIST_CHANNEL and len(messages_to_delete) > 0:
                 await self.LIST_CHANNEL.delete_messages(messages_to_delete)
         except Exception as e:
-            print(e, flush=True)
+            print(traceback.format_exc())
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -590,8 +592,7 @@ class SquadQueue(commands.Cog):
                     print(msg, flush=True)
                     return msg
         except Exception as e:
-            print(e, flush=True)
-
+            print(traceback.format_exc())
 
     # check if user has roles defined in config.json
     async def has_roles(self, member: discord.Member, guild_id: int, config):
@@ -615,7 +616,7 @@ class SquadQueue(commands.Cog):
                         continue
                     await room.view.find_winner()
         except Exception as e:
-            print(e, flush=True)
+            print(traceback.format_exc())
 
     async def write_history(self):
         """Writes the teams, tier and average of each room per hour."""
@@ -635,7 +636,7 @@ class SquadQueue(commands.Cog):
                     msg += "ㅤ"
                     await self.HISTORY_CHANNEL.send(msg)
         except Exception as e:
-            print(e, flush=True)
+            print(traceback.format_exc())
 
     # make thread channels while the event is gathering instead of at the end,
     # since discord only allows 50 thread channels to be created per 5 minutes.
@@ -655,7 +656,7 @@ class SquadQueue(commands.Cog):
                                                                      auto_archive_duration=60,
                                                                      invitable=False)
             except Exception as e:
-                print(e, flush=True)
+                print(traceback.format_exc())
                 err_msg = f"\nAn error has occurred while creating a room channel:\n{e}"
                 await mogi.mogi_channel.send(err_msg)
                 return
@@ -735,11 +736,11 @@ class SquadQueue(commands.Cog):
                     curr_room.view = view
                     await room_channel.send(view=view)
                 except Exception as e:
-                        print(e, flush=True)
-                        err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
-                        err_msg += mentions
-                        msg += err_msg
-                        room_channel = None
+                    print(traceback.format_exc())
+                    err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
+                    err_msg += mentions
+                    msg += err_msg
+                    room_channel = None
             try:
                 await mogi.mogi_channel.send(msg)
             except Exception as e:
@@ -833,11 +834,11 @@ class SquadQueue(commands.Cog):
         try:
             await self.scheduler_mogi_start()
         except Exception as e:
-            print(e)
+            print(traceback.format_exc())
         try:
             await self.ongoing_mogi_checks()
         except Exception as e:
-            print(e)
+            print(traceback.format_exc())
 
     @tasks.loop(minutes=1)
     async def que_scheduler(self):
@@ -898,7 +899,7 @@ class SquadQueue(commands.Cog):
                     f"Deleting {mogi.start_time} Mogi at {curr_time}", flush=True)
                 del self.old_events[mogi.mogi_channel]
         except Exception as e:
-            print(e, flush=True)
+            print(traceback.format_exc())
 
     def get_event_str(self, mogi):
         mogi_time = discord.utils.format_dt(mogi.start_time, style="F")
