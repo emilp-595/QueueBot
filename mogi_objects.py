@@ -142,27 +142,28 @@ class VoteView(View):
         self.teams_text = ""
         self.found_winner = False
         self.tier_info = tier_info
-        self.__setattr__("FFA", [])
-        self.__setattr__("2v2", [])
-        self.__setattr__("3v3", [])
-        self.__setattr__("4v4", [])
-        self.__setattr__("6v6", [])
+        self.votes = {"FFA": [],
+                      "2v2": [],
+                      "3v3": [],
+                      "4v4": [],
+                      "6v6": []
+                      }
 
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-    async def make_teams(self, format):
+    async def make_teams(self, format_):
         random.shuffle(self.players)
 
         room = self.mogi.get_room_from_thread(self.thread.id)
 
-        msg = "**Poll Ended!** \n\n"
-        msg += f"1) FFA - {len(self['FFA'])}\n"
-        msg += f"2) 2v2 - {len(self['2v2'])}\n"
-        msg += f"3) 3v3 - {len(self['3v3'])}\n"
-        msg += f"4) 4v4 - {len(self['4v4'])}\n"
-        msg += f"5) 6v6 - {len(self['6v6'])}\n"
-        msg += f"Winner: {format[1]}\n\n"
+        msg = f"""**Poll Ended!**
+
+1) FFA - {len(self.votes['FFA'])}
+2) 2v2 - {len(self.votes['2v2'])}
+3) 3v3 - {len(self.votes['3v3'])}
+4) 4v4 - {len(self.votes['4v4'])}
+5) 6v6 - {len(self.votes['6v6'])}
+Winner: {format_[1]}
+
+"""
 
         room_mmr = round(sum([p.mmr for p in self.players]) / 12)
         room.mmr_average = room_mmr
@@ -199,30 +200,19 @@ class VoteView(View):
 
     async def find_winner(self):
         if not self.found_winner:
-            # for some reason max function wasnt working...
-            max = 0
-            if len(self["FFA"]) > max:
-                max = len(self["FFA"])
-            if len(self["2v2"]) > max:
-                max = len(self["2v2"])
-            if len(self["3v3"]) > max:
-                max = len(self["3v3"])
-            if len(self["4v4"]) > max:
-                max = len(self["4v4"])
-            if len(self["6v6"]) > max:
-                max = len(self["6v6"])
+            # for some reason max function wasnt working... # It's because you were replacing it.
+            most_votes = len(max(self.votes.values(), key=len))
 
             winners = []
-
-            if len(self["FFA"]) == max:
+            if len(self.votes["FFA"]) == most_votes:
                 winners.append((1, "FFA"))
-            if len(self["2v2"]) == max:
+            if len(self.votes["2v2"]) == most_votes:
                 winners.append((2, "2v2"))
-            if len(self["3v3"]) == max:
+            if len(self.votes["3v3"]) == most_votes:
                 winners.append((3, "3v3"))
-            if len(self["4v4"]) == max:
+            if len(self.votes["4v4"]) == most_votes:
                 winners.append((4, "4v4"))
-            if len(self["6v6"]) == max:
+            if len(self.votes["6v6"]) == most_votes:
                 winners.append((6, "6v6"))
 
             winner = random.choice(winners)
@@ -234,116 +224,39 @@ class VoteView(View):
 
     @discord.ui.button(label="FFA: 0", custom_id="FFA")
     async def one_button_callback(self, interaction, button):
-        if not self.found_winner:
-            if interaction.user.id in self["FFA"]:
-                self["FFA"].remove(interaction.user.id)
-            else:
-                if interaction.user.id in self["2v2"]:
-                    self["2v2"].remove(interaction.user.id)
-                if interaction.user.id in self["3v3"]:
-                    self["3v3"].remove(interaction.user.id)
-                if interaction.user.id in self["4v4"]:
-                    self["4v4"].remove(interaction.user.id)
-                if interaction.user.id in self["6v6"]:
-                    self["6v6"].remove(interaction.user.id)
-                self["FFA"].append(interaction.user.id)
-            if len(self["FFA"]) == 6:
-                await self.make_teams((1, "FFA"))
-            for curr_button in self.children:
-                curr_button.label = f"{curr_button.custom_id}: {len(self[curr_button.custom_id])}"
-                if len(self["FFA"]) == 6:
-                    curr_button.disabled = True
-        await interaction.response.edit_message(view=self)
+        await self.general_vote_callback(interaction, 1, "FFA")
 
     @discord.ui.button(label="2v2: 0", custom_id="2v2")
     async def two_button_callback(self, interaction, button):
-        if not self.found_winner:
-            if interaction.user.id in self["2v2"]:
-                self["2v2"].remove(interaction.user.id)
-            else:
-                if interaction.user.id in self["FFA"]:
-                    self["FFA"].remove(interaction.user.id)
-                if interaction.user.id in self["3v3"]:
-                    self["3v3"].remove(interaction.user.id)
-                if interaction.user.id in self["4v4"]:
-                    self["4v4"].remove(interaction.user.id)
-                if interaction.user.id in self["6v6"]:
-                    self["6v6"].remove(interaction.user.id)
-                self["2v2"].append(interaction.user.id)
-            if len(self["2v2"]) == 6:
-                await self.make_teams((2, "2v2"))
-            for curr_button in self.children:
-                curr_button.label = f"{curr_button.custom_id}: {len(self[curr_button.custom_id])}"
-                if len(self["2v2"]) == 6:
-                    curr_button.disabled = True
-        await interaction.response.edit_message(view=self)
+        await self.general_vote_callback(interaction, 2, "2v2")
 
     @discord.ui.button(label="3v3: 0", custom_id="3v3")
     async def three_button_callback(self, interaction, button):
-        if not self.found_winner:
-            if interaction.user.id in self["3v3"]:
-                self["3v3"].remove(interaction.user.id)
-            else:
-                if interaction.user.id in self["FFA"]:
-                    self["FFA"].remove(interaction.user.id)
-                if interaction.user.id in self["2v2"]:
-                    self["2v2"].remove(interaction.user.id)
-                if interaction.user.id in self["4v4"]:
-                    self["4v4"].remove(interaction.user.id)
-                if interaction.user.id in self["6v6"]:
-                    self["6v6"].remove(interaction.user.id)
-                self["3v3"].append(interaction.user.id)
-            if len(self["3v3"]) == 6:
-                await self.make_teams((3, "3v3"))
-            for curr_button in self.children:
-                curr_button.label = f"{curr_button.custom_id}: {len(self[curr_button.custom_id])}"
-                if len(self["3v3"]) == 6:
-                    curr_button.disabled = True
-        await interaction.response.edit_message(view=self)
+        await self.general_vote_callback(interaction, 3, "3v3")
 
     @discord.ui.button(label="4v4: 0", custom_id="4v4")
     async def four_button_callback(self, interaction, button):
-        if not self.found_winner:
-            if interaction.user.id in self["4v4"]:
-                self["4v4"].remove(interaction.user.id)
-            else:
-                if interaction.user.id in self["FFA"]:
-                    self["FFA"].remove(interaction.user.id)
-                if interaction.user.id in self["2v2"]:
-                    self["2v2"].remove(interaction.user.id)
-                if interaction.user.id in self["3v3"]:
-                    self["3v3"].remove(interaction.user.id)
-                if interaction.user.id in self["6v6"]:
-                    self["6v6"].remove(interaction.user.id)
-                self["4v4"].append(interaction.user.id)
-            if len(self["4v4"]) == 6:
-                await self.make_teams((4, "4v4"))
-            for curr_button in self.children:
-                curr_button.label = f"{curr_button.custom_id}: {len(self[curr_button.custom_id])}"
-                if len(self["4v4"]) == 6:
-                    curr_button.disabled = True
-        await interaction.response.edit_message(view=self)
+        await self.general_vote_callback(interaction, 4, "4v4")
 
     @discord.ui.button(label="6v6: 0", custom_id="6v6")
     async def six_button_callback(self, interaction, button):
+        await self.general_vote_callback(interaction, 6, "6v6")
+
+    async def general_vote_callback(self, interaction: discord.Interaction, players_per_team: int, vote: str):
         if not self.found_winner:
-            if interaction.user.id in self["6v6"]:
-                self["6v6"].remove(interaction.user.id)
-            else:
-                if interaction.user.id in self["FFA"]:
-                    self["FFA"].remove(interaction.user.id)
-                if interaction.user.id in self["2v2"]:
-                    self["2v2"].remove(interaction.user.id)
-                if interaction.user.id in self["3v3"]:
-                    self["3v3"].remove(interaction.user.id)
-                if interaction.user.id in self["4v4"]:
-                    self["4v4"].remove(interaction.user.id)
-                self["6v6"].append(interaction.user.id)
-            if len(self["6v6"]) == 6:
-                await self.make_teams((6, "6v6"))
+            original_vote = None
+            for vote_option, voter_ids in self.votes.items():
+                if interaction.user.id in voter_ids:
+                    original_vote = vote_option
+                    voter_ids.remove(interaction.user.id)
+            if original_vote != vote:  # They changed their vote or are a new voter
+                self.votes[vote].append(interaction.user.id)
+            if len(self.votes[vote]) == 6:
+                self.found_winner = True  # This fixes a race condition
+                await self.make_teams((players_per_team, vote))
             for curr_button in self.children:
-                curr_button.label = f"{curr_button.custom_id}: {len(self[curr_button.custom_id])}"
-                if len(self["6v6"]) == 6:
+                curr_button.label = f"{curr_button.custom_id}: {len(self.votes[curr_button.custom_id])}"
+                if self.found_winner:
                     curr_button.disabled = True
         await interaction.response.edit_message(view=self)
 
