@@ -666,7 +666,7 @@ class SquadQueue(commands.Cog):
 
     @staticmethod
     async def handle_voting_and_history(mogi: Mogi, history_channel: discord.TextChannel):
-        await asyncio.sleep(120)
+        await asyncio.sleep(120)  # We could have used asyncio.call_later(120, handle_voting_and_history) in the caller's code
         await SquadQueue.end_voting(mogi)
         await SquadQueue.write_history(mogi, history_channel)
 
@@ -767,7 +767,9 @@ class SquadQueue(commands.Cog):
             except Exception as e:
                 print("Late Player message has failed to send.", flush=True)
                 print(traceback.format_exc())
-
+    
+        # We could have used asyncio.call_later(120, handle_voting_and_history)
+        # and removed asyncio.sleep(120) in handle_voting_and_history
         asyncio.create_task(SquadQueue.handle_voting_and_history(self.ongoing_event, self.HISTORY_CHANNEL))
         self.old_events.append(self.ongoing_event)
         self.ongoing_event = None
