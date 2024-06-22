@@ -188,14 +188,12 @@ class SquadQueue(commands.Cog):
     async def is_started(self, ctx, mogi: Mogi):
         if not mogi.started:
             await ctx.send("Mogi has not been started yet... type !start")
-            return False
-        return True
+        return mogi.started
 
     async def is_gathering(self, ctx, mogi: Mogi):
         if not mogi.gathering:
             await ctx.send("Mogi is closed; players cannot join or drop from the event")
-            return False
-        return True
+        return mogi.gathering
 
     @app_commands.command(name="c")
     @app_commands.guild_only()
