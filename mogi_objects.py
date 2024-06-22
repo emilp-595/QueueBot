@@ -31,11 +31,7 @@ class Mogi:
         return sum(1 for team in self.teams if team.is_registered())
 
     def confirmed_list(self):
-        confirmed = []
-        for team in self.teams:
-            if team.is_registered():
-                confirmed.append(team)
-        return confirmed
+        return [team for team in self.teams if team.is_registered()]
 
     def remove_id(self, squad_id: int):
         confirmed = self.confirmed_list()
