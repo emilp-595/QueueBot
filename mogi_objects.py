@@ -81,10 +81,7 @@ class Team:
         return all(player.confirmed for player in self.players)
 
     def has_player(self, member):
-        for player in self.players:
-            if player.member.id == member.id:
-                return True
-        return False
+        return any(player.member.id == member.id for player in self.players)
 
     def get_player(self, member):
         for player in self.players:
