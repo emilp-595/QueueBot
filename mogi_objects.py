@@ -100,11 +100,8 @@ class Team:
                 return
 
     def num_confirmed(self):
-        count = 0
-        for player in self.players:
-            if player.confirmed:
-                count += 1
-        return count
+        """Returns the number of confirmed players in the team"""
+        return sum(1 for player in self.players if player.confirmed)
 
     def get_unconfirmed(self):
         unconfirmed = []
