@@ -111,7 +111,7 @@ class Team:
         return self.avg_mmr < other.avg_mmr
 
     def __gt__(self, other):
-        return other.__lt__(self)
+        return other < self
 
     # def __eq__(self, other):
     #     if self.avg_mmr == other.avg_mmr:
