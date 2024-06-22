@@ -167,8 +167,7 @@ class VoteView(View):
         room_mmr = round(sum([p.mmr for p in self.players]) / 12)
         room.mmr_average = room_mmr
         self.header_text = f"**Room {room.room_num} MMR: {room_mmr} - T{get_tier(room_mmr, self.tier_info)}** "
-        msg += self.header_text
-        msg += "\n"
+        msg += self.header_text + "\n"
 
         teams = []
         teams_per_room = int(12 / format_[0])
