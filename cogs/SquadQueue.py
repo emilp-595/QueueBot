@@ -947,6 +947,7 @@ class SquadQueue(commands.Cog):
     @commands.command(name="debug_add_many_players")
     @commands.is_owner()
     async def debug_add_many_players(self, ctx, members: commands.Greedy[discord.Member]):
+        num_times = 25
         mogi = self.get_mogi(ctx)
         if mogi is None:
             return
@@ -957,13 +958,13 @@ class SquadQueue(commands.Cog):
         check_players = [ctx.author]
         check_players.extend(members)
         players = await mkw_mmr(self.URL, check_players, self.TRACK_TYPE)
-        for i in range(0, 100):
+        for i in range(0, num_times):
             player = Player(
                 players[0].member, f"{players[0].lounge_name}{i + 1}", players[0].mmr + (10 * i))
             player.confirmed = True
             squad = Team([player])
             mogi.teams.append(squad)
-        msg = f"{players[0].lounge_name} added 100 times."
+        msg = f"{players[0].lounge_name} added {num_times} times."
         await self.queue_or_send(ctx, msg)
         await self.check_room_channels(mogi)
         await self.check_num_teams(mogi)
