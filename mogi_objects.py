@@ -12,6 +12,7 @@ class Mogi:
         self.started = False
         self.gathering = False
         self.making_rooms_run = False
+        self.making_rooms_run_time = None
         self.sq_id = sq_id
         self.size = size
         self.mogi_channel = mogi_channel
@@ -133,7 +134,7 @@ class Player:
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi, tier_info):
+    def __init__(self, players, thread, mogi: Mogi, tier_info):
         super().__init__()
         self.players = players
         self.thread = thread
@@ -150,6 +151,7 @@ class VoteView(View):
                       }
 
     async def make_teams(self, format_):
+        self.mogi.making_rooms_run_time = datetime.now(timezone.utc)
         random.shuffle(self.players)
 
         room = self.mogi.get_room_from_thread(self.thread.id)
@@ -189,8 +191,8 @@ Winner: {format_[1]}
             msg += team_text
             self.teams_text += team_text
 
-        penalty_time = self.mogi.start_time + timedelta(minutes=8)
-        room_open_time = self.mogi.start_time
+        penalty_time = self.mogi.making_rooms_run_time + timedelta(minutes=8)
+        room_open_time = self.mogi.making_rooms_run_time
         msg += f"Decide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
         room.teams = teams
