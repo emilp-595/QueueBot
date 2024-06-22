@@ -3,6 +3,7 @@ import discord
 from datetime import datetime, timezone, timedelta
 import time
 from discord.ui import View
+from typing import List
 
 
 class Mogi:
@@ -14,8 +15,8 @@ class Mogi:
         self.sq_id = sq_id
         self.size = size
         self.mogi_channel = mogi_channel
-        self.teams = []
-        self.rooms = []
+        self.teams: List[Team] = []
+        self.rooms: List[Room] = []
         self.is_automated = is_automated
         if not is_automated:
             self.start_time = None
