@@ -171,9 +171,9 @@ class VoteView(View):
         msg += "\n"
 
         teams = []
-        teams_per_room = int(12 / format[0])
+        teams_per_room = int(12 / format_[0])
         for j in range(teams_per_room):
-            team = Team(self.players[j*format[0]:(j+1)*format[0]])
+            team = Team(self.players[j * format_[0]:(j + 1) * format_[0]])
             teams.append(team)
 
         teams.sort(key=lambda team: team.avg_mmr, reverse=True)
