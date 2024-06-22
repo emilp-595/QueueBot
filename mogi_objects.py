@@ -27,11 +27,8 @@ class Mogi:
         return None
 
     def count_registered(self):
-        count = 0
-        for team in self.teams:
-            if team.is_registered():
-                count += 1
-        return count
+        """Returns the number of teams that are registered"""
+        return sum(1 for team in self.teams if team.is_registered())
 
     def confirmed_list(self):
         confirmed = []
