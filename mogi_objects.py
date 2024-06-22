@@ -77,10 +77,8 @@ class Team:
         self.avg_mmr = sum([p.mmr for p in self.players]) / len(self.players)
 
     def is_registered(self):
-        for player in self.players:
-            if player.confirmed is False:
-                return False
-        return True
+        """Returns if all players on the team are registered"""
+        return all(player.confirmed for player in self.players)
 
     def has_player(self, member):
         for player in self.players:
