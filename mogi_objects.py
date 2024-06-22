@@ -37,7 +37,7 @@ class Mogi:
         confirmed = self.confirmed_list()
         if squad_id < 1 or squad_id > len(confirmed):
             return None
-        squad = confirmed[squad_id-1]
+        squad = confirmed[squad_id - 1]
         self.teams.remove(squad)
         return squad
 
@@ -64,6 +64,7 @@ class Room:
         self.mmr_low = None
         self.view = None
         self.finished = False
+
     def get_player_list(self):
         return [player.member.id for team in self.teams for player in team.players]
 
@@ -180,7 +181,7 @@ class VoteView(View):
         scoreboard_text = []
 
         for j in range(teams_per_room):
-            team_text = f"`{j+1}.` "
+            team_text = f"`{j + 1}.` "
             team_names = ", ".join([p.lounge_name for p in teams[j].players])
             scoreboard_text.append(team_names)
             team_text += team_names
@@ -398,5 +399,6 @@ class JoinView(View):
 
 def get_tier(mmr: int, tier_info):
     for tier in tier_info:
-        if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
+        if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
+                tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
             return tier["ladder_order"]
