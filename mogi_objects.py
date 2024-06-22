@@ -108,10 +108,7 @@ class Team:
         return [player for player in self.players if not player.confirmed]
 
     def __lt__(self, other):
-        if self.avg_mmr < other.avg_mmr:
-            return True
-        if self.avg_mmr > other.avg_mmr:
-            return False
+        return self.avg_mmr < other.avg_mmr
 
     def __gt__(self, other):
         return other.__lt__(self)
