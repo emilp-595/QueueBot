@@ -188,17 +188,9 @@ class VoteView(View):
             msg += team_text
             self.teams_text += team_text
 
-        minutes = self.mogi.start_time.minute
-        pen = minutes + 8
-
-        if pen > 60:
-            pen -= 60
-
-        if pen < 10:
-            pen = '0' + str(pen)
-        if minutes < 10:
-            minutes = '0' + str(minutes)
-        msg += "Decide a host amongst yourselves; room open at :{}, penalty at :{}. Good luck!".format(minutes, pen)
+        penalty_time = self.mogi.start_time + timedelta(minutes=8)
+        room_open_time = self.mogi.start_time
+        msg += f"Decide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
         room.teams = teams
 
