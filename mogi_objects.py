@@ -18,10 +18,7 @@ class Mogi:
         self.teams: List[Team] = []
         self.rooms: List[Room] = []
         self.is_automated = is_automated
-        if not is_automated:
-            self.start_time = None
-        else:
-            self.start_time = start_time
+        self.start_time = start_time if is_automated else None
 
     def check_player(self, member):
         for team in self.teams:
