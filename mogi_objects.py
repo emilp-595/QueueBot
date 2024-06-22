@@ -104,11 +104,8 @@ class Team:
         return sum(1 for player in self.players if player.confirmed)
 
     def get_unconfirmed(self):
-        unconfirmed = []
-        for player in self.players:
-            if not player.confirmed:
-                unconfirmed.append(player)
-        return unconfirmed
+        """Returns a list of players on the team who have not confirmed yet."""
+        return [player for player in self.players if not player.confirmed]
 
     def __lt__(self, other):
         if self.avg_mmr < other.avg_mmr:
