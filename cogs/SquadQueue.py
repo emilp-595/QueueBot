@@ -669,7 +669,7 @@ class SquadQueue(commands.Cog):
         await SquadQueue.write_history(mogi, history_channel)
 
     # add teams to the room threads that we have already created
-    async def add_teams_to_rooms(self, mogi, open_time: int, started_automatically=False):
+    async def add_teams_to_rooms(self, mogi: Mogi, open_time: int, started_automatically=False):
         if open_time >= 60 or open_time < 0:
             await mogi.mogi_channel.send("Please specify a valid time (in minutes) for rooms to open (00-59)")
             return
