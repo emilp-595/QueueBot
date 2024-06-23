@@ -688,12 +688,6 @@ class SquadQueue(commands.Cog):
             mogi.gathering = False
             await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
 
-        pen_time = open_time + 5
-        start_time = open_time + 10
-        while pen_time >= 60:
-            pen_time -= 60
-        while start_time >= 60:
-            start_time -= 60
         teams_per_room = int(12/mogi.size)
         num_teams = int(num_rooms * teams_per_room)
         final_list = mogi.confirmed_list()[0:num_teams]
