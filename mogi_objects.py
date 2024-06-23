@@ -15,6 +15,7 @@ class Mogi:
         self.making_rooms_run_time = None
         self.sq_id = sq_id
         self.players_per_team = players_per_team
+        self.teams_per_room = teams_per_room
         self.mogi_channel = mogi_channel
         self.teams: List[Team] = []
         self.rooms: List[Room] = []
