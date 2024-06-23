@@ -89,10 +89,10 @@ class Room:
 class Team:
     def __init__(self, players):
         self.players = players
-        self.avg_mmr = sum([p.mmr for p in self.players]) / len(self.players)
 
-    def recalc_avg(self):
-        self.avg_mmr = sum([p.mmr for p in self.players]) / len(self.players)
+    @property
+    def avg_mmr(self):
+        return sum([p.mmr for p in self.players]) / len(self.players)
 
     def is_registered(self):
         """Returns if all players on the team are registered"""
@@ -114,7 +114,6 @@ class Team:
         for i, player in enumerate(self.players):
             if player == sub_out:
                 self.players[i] = sub_in
-                self.recalc_avg()
                 return
 
     def num_confirmed(self):
