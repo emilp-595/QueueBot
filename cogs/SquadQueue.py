@@ -213,23 +213,21 @@ class SquadQueue(commands.Cog):
                 await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
                 return
 
-            players = []
             msg = ""
             placement_role_id = 723753340063842345
             if member.get_role(placement_role_id):
                 starting_player_mmr = 750
-                player = Player(member, member.display_name, starting_player_mmr)
-                players.append(player)
+                players = [Player(member, member.display_name, starting_player_mmr)]
                 msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
                 msg += "If you believe this is a mistake, please contact a staff member for help.\n"
             else:    
                 players = await mkw_mmr(self.URL, [member], self.TRACK_TYPE)
 
-                if len(players) == 0 or players[0] is None:
-                    msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
-                    msg += "Please try again.  If the problem continues then contact a staff member for help."
-                    await interaction.followup.send(msg)
-                    return
+            if len(players) == 0 or players[0] is None:
+                msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
+                msg += "Please try again.  If the problem continues then contact a staff member for help."
+                await interaction.followup.send(msg)
+                return
 
             players[0].confirmed = True
             squad = Team(players)
