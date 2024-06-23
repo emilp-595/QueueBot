@@ -895,7 +895,7 @@ class SquadQueue(commands.Cog):
         mogi_time = discord.utils.format_dt(mogi.start_time, style="F")
         mogi_time_relative = discord.utils.format_dt(
             mogi.start_time, style="R")
-        return (f"`#{mogi.sq_id}` **{mogi.size}v{mogi.size}:** {mogi_time} - {mogi_time_relative}")
+        return f"`#{mogi.sq_id}` **{mogi.players_per_team}v{mogi.players_per_team}:** {mogi_time} - {mogi_time_relative}"
 
     @commands.command(name="sync")
     @commands.is_owner()
