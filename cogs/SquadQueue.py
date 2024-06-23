@@ -707,7 +707,7 @@ class SquadQueue(commands.Cog):
         for i in range(num_rooms):
             msg = f"`Room {i+1} - Player List`\n"
             mentions = ""
-            start_index = int(i*teams_per_room)
+            start_index = i*teams_per_room
             player_list = []
             for j in range(teams_per_room):
                 msg += f"`{j+1}.` "
