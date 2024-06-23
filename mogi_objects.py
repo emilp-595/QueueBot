@@ -22,6 +22,21 @@ class Mogi:
         self.is_automated = is_automated
         self.start_time = start_time if is_automated else None
 
+    @property
+    def num_players(self):
+        """Returns the total number of players in teams where all players have confirmed"""
+        return self.num_teams * self.players_per_team
+
+    @property
+    def num_teams(self):
+        """Returns the total number of teams where all players have confirmed"""
+        return self.count_registered()
+
+    @property
+    def num_rooms(self):
+        """Returns the number of rooms based on teams where all players have confirmed"""
+        return self.num_teams // self.teams_per_room
+
     def check_player(self, member):
         for team in self.teams:
             if team.has_player(member):
