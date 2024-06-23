@@ -771,7 +771,7 @@ class SquadQueue(commands.Cog):
             return
         cur_time = datetime.now(timezone.utc)
         if mogi.start_time <= cur_time:
-            num_leftover_teams = mogi.count_registered() % int((12 / mogi.size))
+            num_leftover_teams = mogi.count_registered() % int((12 / mogi.players_per_team))
             if num_leftover_teams == 0:
                 mogi.gathering = False
                 await self.lockdown(mogi.mogi_channel)
