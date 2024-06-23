@@ -7,14 +7,14 @@ from typing import List
 
 
 class Mogi:
-    def __init__(self, sq_id: int, size: int, mogi_channel: discord.TextChannel,
+    def __init__(self, sq_id: int, players_per_team: int, teams_per_room: int, mogi_channel: discord.TextChannel,
                  is_automated=False, start_time=None):
         self.started = False
         self.gathering = False
         self.making_rooms_run = False
         self.making_rooms_run_time = None
         self.sq_id = sq_id
-        self.size = size
+        self.players_per_team = players_per_team
         self.mogi_channel = mogi_channel
         self.teams: List[Team] = []
         self.rooms: List[Room] = []

@@ -644,7 +644,7 @@ class SquadQueue(commands.Cog):
     # since discord only allows 50 thread channels to be created per 5 minutes.
     async def check_room_channels(self, mogi):
         num_teams = mogi.count_registered()
-        num_rooms = int(num_teams / (12/mogi.size))
+        num_rooms = int(num_teams / (12 / mogi.players_per_team))
         num_created_rooms = len(mogi.rooms)
         if num_created_rooms >= num_rooms:
             return
@@ -677,7 +677,7 @@ class SquadQueue(commands.Cog):
             return
         if mogi.making_rooms_run and started_automatically:
             return
-        num_rooms = int(mogi.count_registered() / (12/mogi.size))
+        num_rooms = int(mogi.count_registered() / (12 / mogi.players_per_team))
         if num_rooms == 0:
             self.ongoing_event = None
             await mogi.mogi_channel.send(f"Not enough players to fill a single room! This mogi will be cancelled.")
@@ -688,7 +688,7 @@ class SquadQueue(commands.Cog):
             mogi.gathering = False
             await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
 
-        teams_per_room = int(12/mogi.size)
+        teams_per_room = int(12 / mogi.players_per_team)
         num_teams = int(num_rooms * teams_per_room)
         final_list = mogi.confirmed_list()[0:num_teams]
         sorted_list = sorted(final_list, reverse=True)
@@ -790,14 +790,14 @@ class SquadQueue(commands.Cog):
                     mogi.gathering = False
                 elif mogi.start_time <= cur_time and mogi.gathering:
                     # check if there are an even amount of teams since we are past the queue time
-                    num_leftover_teams = mogi.count_registered() % int((12 / mogi.size))
+                    num_leftover_teams = mogi.count_registered() % int((12 / mogi.players_per_team))
                     if num_leftover_teams == 0:
                         mogi.gathering = False
                     else:
                         if int(cur_time.second / 20) == 0:
                             force_time = mogi.start_time + self.EXTENSION_TIME
                             minutes_left = (force_time - cur_time).seconds // 60
-                            x_teams = int(int(12 / mogi.size) - num_leftover_teams)
+                            x_teams = int(int(12 / mogi.players_per_team) - num_leftover_teams)
                             await mogi.mogi_channel.send(
                                 f"Need {x_teams} more player(s) to start immediately. Starting in {minutes_left + 1} minute(s) regardless.")
             if not mogi.gathering:
@@ -871,7 +871,11 @@ class SquadQueue(commands.Cog):
                 await self.MOGI_CHANNEL.send(
                     "Squad Queue is currently going on at this hour!  The queue will remain closed.")
 
-            self.next_event = Mogi(1, 1, self.MOGI_CHANNEL, is_automated=True,
+            self.next_event = Mogi(sq_id=1,
+                                   players_per_team=1,
+                                   teams_per_room=12,
+                                   mogi_channel=self.MOGI_CHANNEL,
+                                   is_automated=True,
                                    start_time=next_event_start_time)
 
             print(f"Started Queue for {next_event_start_time}", flush=True)
