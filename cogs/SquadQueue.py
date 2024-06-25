@@ -316,7 +316,7 @@ class SquadQueue(commands.Cog):
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
         await self.SUB_CHANNEL.send(msg, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
-        view = JoinView(room, get_mmr_from_discord_id, bottom_room_num)
+        view = JoinView(room, lambda discord_id: get_mmr_from_discord_id(discord_id, self.TRACK_TYPE), bottom_room_num)
         await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         cooldowns[interaction.user.id] = current_time  # Updates cooldown
         await interaction.response.send_message("Sent out request for sub.")
