@@ -14,12 +14,15 @@ import asyncio
 from collections import defaultdict
 from typing import Dict, List
 import traceback
+import os
+import dill
 
 headers = {'Content-type': 'application/json'}
 
 # Scheduled_Event = collections.namedtuple('Scheduled_Event', 'size time started mogi_channel')
 
 cooldowns = defaultdict(int)
+MMR_THRESHOLD_PKL = "mmr_threshold.pkl"
 
 class SquadQueue(commands.Cog):
     def __init__(self, bot):
@@ -65,6 +68,11 @@ class SquadQueue(commands.Cog):
         self.SUB_MESSAGE_LIFETIME_SECONDS = bot.config["SUB_MESSAGE_LIFETIME_SECONDS"]
 
         self.room_mmr_threshold = bot.config["ROOM_MMR_THRESHOLD"]
+        if os.path.isfile(MMR_THRESHOLD_PKL):
+            try:
+                self.room_mmr_threshold = dill.load('name_model.pkl')
+            except:
+                print(traceback.format_exc())
 
         self.TRACK_TYPE = bot.config["track_type"]
 
@@ -481,6 +489,11 @@ class SquadQueue(commands.Cog):
     async def change_mmr_threshold(self, interaction: discord.Interaction, mmr_threshold: int):
         """Change the maximum MMR gap allowed for a room."""
         self.room_mmr_threshold = mmr_threshold
+        try:
+            with open(MMR_THRESHOLD_PKL, 'wb') as f:
+                dill.dump(self.room_mmr_threshold, f)
+        except:
+            print(traceback.format_exc())
         await interaction.response.send_message(f"MMR Threshold for Queue Rooms has been modified to {mmr_threshold} MMR.")
 
     @app_commands.command(name="peek_bot_config")
