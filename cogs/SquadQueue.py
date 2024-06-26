@@ -70,7 +70,8 @@ class SquadQueue(commands.Cog):
         self.room_mmr_threshold = bot.config["ROOM_MMR_THRESHOLD"]
         if os.path.isfile(MMR_THRESHOLD_PKL):
             try:
-                self.room_mmr_threshold = dill.load('name_model.pkl')
+                with open(MMR_THRESHOLD_PKL, 'rb') as f:
+                    self.room_mmr_threshold = dill.load(f)
             except:
                 print(traceback.format_exc())
 
