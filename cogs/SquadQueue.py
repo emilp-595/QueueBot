@@ -26,7 +26,7 @@ MMR_THRESHOLD_PKL = "mmr_threshold.pkl"
 
 class SquadQueue(commands.Cog):
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
 
         self.next_event: Mogi = None
 
@@ -47,7 +47,7 @@ class SquadQueue(commands.Cog):
 
         self.LAUNCH_NEW_EVENTS = True
 
-        self.GUILD = None
+        self.GUILD: discord.Guild = None
 
         self.MOGI_CHANNEL = None
 
@@ -231,7 +231,7 @@ class SquadQueue(commands.Cog):
                 players.append(player)
                 msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
                 msg += "If you believe this is a mistake, please contact a staff member for help.\n"
-            else:    
+            else:
                 players = await mkw_mmr(self.URL, [member], self.TRACK_TYPE)
 
                 if len(players) == 0 or players[0] is None:
@@ -291,7 +291,7 @@ class SquadQueue(commands.Cog):
                 f"You are still on cooldown. Please wait for {int(2 * 60 - (current_time - lastCommandTime))} more seconds to use this command again.",
                 ephemeral=True)
             return
-        
+
         is_room_thread = False
         room = None
         bottom_room_num = 1
@@ -472,7 +472,7 @@ class SquadQueue(commands.Cog):
         """Mogis will begin to be scheduled again.  Staff use only."""
         self.LAUNCH_NEW_EVENTS = True
         await interaction.response.send_message("Mogis will resume scheduling.")
-    
+
     @app_commands.command(name="change_event_time")
     @app_commands.guild_only()
     async def change_event_time(self, interaction: discord.Interaction, event_time: int):
@@ -570,7 +570,7 @@ class SquadQueue(commands.Cog):
         self.sq_times = []
 
         await interaction.response.send_message("Cleared list of Squad Queue Times.")
-    
+
     @app_commands.command(name="update_tier_info")
     @app_commands.guild_only()
     async def update_tier_info(self, interaction: discord.Interaction):
@@ -781,7 +781,7 @@ class SquadQueue(commands.Cog):
             except Exception as e:
                 print("Late Player message has failed to send.", flush=True)
                 print(traceback.format_exc())
-    
+
         # We could have used asyncio.call_later(120, handle_voting_and_history)
         # and removed asyncio.sleep(120) in handle_voting_and_history
         asyncio.create_task(SquadQueue.handle_voting_and_history(self.ongoing_event, self.HISTORY_CHANNEL))
@@ -990,7 +990,7 @@ class SquadQueue(commands.Cog):
             return
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot):
     await bot.add_cog(SquadQueue(bot))
 
 
