@@ -24,6 +24,14 @@ headers = {'Content-type': 'application/json'}
 cooldowns = defaultdict(int)
 MMR_THRESHOLD_PKL = "mmr_threshold.pkl"
 
+
+def is_restricted(user: discord.User | discord.Member, config: dict) -> bool:
+    muted_role_id = config.get("muted_role_id")
+    restricted_role_id = config.get("restricted_role_id")
+    return (muted_role_id is not None and user.get_role(muted_role_id)) \
+        or (restricted_role_id is not None and user.get_role(restricted_role_id))
+
+
 class SquadQueue(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
@@ -325,7 +333,10 @@ class SquadQueue(commands.Cog):
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
         await self.SUB_CHANNEL.send(msg, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
-        view = JoinView(room, lambda discord_id: get_mmr_from_discord_id(discord_id, self.TRACK_TYPE), bottom_room_num)
+        view = JoinView(room,
+                        lambda discord_id: get_mmr_from_discord_id(discord_id, self.TRACK_TYPE),
+                        bottom_room_num,
+                        lambda user: is_restricted(user, self.bot.config))
         await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         cooldowns[interaction.user.id] = current_time  # Updates cooldown
         await interaction.response.send_message("Sent out request for sub.")
