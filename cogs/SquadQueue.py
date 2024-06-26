@@ -924,7 +924,6 @@ class SquadQueue(commands.Cog):
                 return
             next_event_open_time = self.compute_next_event_open_time()
             next_event_start_time = next_event_open_time + self.JOINING_TIME
-            print(f"Next event open time: {next_event_open_time}", flush=True)
             # We don't want to schedule the next event if it would open after it's joining period and during its extension period
             if next_event_start_time < datetime.now(timezone.utc):
                 return
