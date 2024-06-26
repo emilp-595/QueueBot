@@ -39,6 +39,11 @@
             792891432301625364,
             877629421811540016
     ],
+    "helper_staff_roles": [
+        520808674411937792,
+        792891432301625364,
+        521149807994208295
+    ],
     "queue_messages": true,
     "sec_between_queue_msgs": 2,
     "username": "username",
