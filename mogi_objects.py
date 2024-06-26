@@ -271,7 +271,7 @@ class JoinView(View):
         self.bottom_room_num = bottom_room_num
 
     @discord.ui.button(label="Join Room")
-    async def button_callback(self, interaction, button):
+    async def button_callback(self, interaction: discord.Interaction, button):
         await interaction.response.defer()
         muted_role_id = 434887701662007296
         restricted_role_id = 797208908153618452
