@@ -14,16 +14,27 @@ import asyncio
 from collections import defaultdict
 from typing import Dict, List
 import traceback
+import os
+import dill
 
 headers = {'Content-type': 'application/json'}
 
 # Scheduled_Event = collections.namedtuple('Scheduled_Event', 'size time started mogi_channel')
 
 cooldowns = defaultdict(int)
+MMR_THRESHOLD_PKL = "mmr_threshold.pkl"
+
+
+def is_restricted(user: discord.User | discord.Member, config: dict) -> bool:
+    muted_role_id = config.get("muted_role_id")
+    restricted_role_id = config.get("restricted_role_id")
+    return (muted_role_id is not None and user.get_role(muted_role_id)) \
+        or (restricted_role_id is not None and user.get_role(restricted_role_id))
+
 
 class SquadQueue(commands.Cog):
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
 
         self.next_event: Mogi = None
 
@@ -44,7 +55,7 @@ class SquadQueue(commands.Cog):
 
         self.LAUNCH_NEW_EVENTS = True
 
-        self.GUILD = None
+        self.GUILD: discord.Guild = None
 
         self.MOGI_CHANNEL = None
 
@@ -65,6 +76,12 @@ class SquadQueue(commands.Cog):
         self.SUB_MESSAGE_LIFETIME_SECONDS = bot.config["SUB_MESSAGE_LIFETIME_SECONDS"]
 
         self.room_mmr_threshold = bot.config["ROOM_MMR_THRESHOLD"]
+        if os.path.isfile(MMR_THRESHOLD_PKL):
+            try:
+                with open(MMR_THRESHOLD_PKL, 'rb') as f:
+                    self.room_mmr_threshold = dill.load(f)
+            except:
+                print(traceback.format_exc())
 
         self.TRACK_TYPE = bot.config["track_type"]
 
@@ -88,6 +105,11 @@ class SquadQueue(commands.Cog):
 
         with open('./timezones.json', 'r') as cjson:
             self.timezones = json.load(cjson)
+
+        # The following dictionary will be populated using the config's staff_helper_roles list. Players can
+        # call these roles into their room/thread using the /staff role command
+        # These will be refreshed every 24 hours to ensure that the correct name displays for the options
+        self.helper_staff_roles: Dict[str, discord.Role] = {}
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -121,6 +143,7 @@ class SquadQueue(commands.Cog):
         print(f"General Channel - {self.GENERAL_CHANNEL}", flush=True)
         print("Ready!", flush=True)
     
+        self.refresh_helper_roles.start()
 
     async def lockdown(self, channel: discord.TextChannel):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
@@ -222,7 +245,7 @@ class SquadQueue(commands.Cog):
                 players.append(player)
                 msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
                 msg += "If you believe this is a mistake, please contact a staff member for help.\n"
-            else:    
+            else:
                 players = await mkw_mmr(self.URL, [member], self.TRACK_TYPE)
 
                 if len(players) == 0 or players[0] is None:
@@ -282,7 +305,7 @@ class SquadQueue(commands.Cog):
                 f"You are still on cooldown. Please wait for {int(2 * 60 - (current_time - lastCommandTime))} more seconds to use this command again.",
                 ephemeral=True)
             return
-        
+
         is_room_thread = False
         room = None
         bottom_room_num = 1
@@ -316,7 +339,10 @@ class SquadQueue(commands.Cog):
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
         await self.SUB_CHANNEL.send(msg, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
-        view = JoinView(room, lambda discord_id: get_mmr_from_discord_id(discord_id, self.TRACK_TYPE), bottom_room_num)
+        view = JoinView(room,
+                        lambda discord_id: get_mmr_from_discord_id(discord_id, self.TRACK_TYPE),
+                        bottom_room_num,
+                        lambda user: is_restricted(user, self.bot.config))
         await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         cooldowns[interaction.user.id] = current_time  # Updates cooldown
         await interaction.response.send_message("Sent out request for sub.")
@@ -441,6 +467,29 @@ class SquadQueue(commands.Cog):
 
             await interaction.followup.send(msg)
 
+    @app_commands.command(name="ping_staff")
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 300, key=lambda i: i.user.id)
+    async def ping_staff(self, interaction: discord.Interaction, role: str):
+        """Pings the specified staff role for help."""
+        if not isinstance(interaction.channel, discord.Thread):
+            await interaction.response.send_message(f"Cannot use this command here.", ephemeral=True)
+            return
+        if is_restricted(interaction.user, self.bot.config):
+            await interaction.response.send_message(f"You are restricted from using this command.", ephemeral=True)
+            return
+        if role not in self.helper_staff_roles:
+            await interaction.response.send_message(f"You are not allowed to ping this role for help. Valid roles to ping: `{', '.join(self.helper_staff_roles)}`", ephemeral=True)
+            return
+        await interaction.response.send_message(f"{self.helper_staff_roles[role].mention}, {interaction.user.mention} is requesting help.", allowed_mentions=discord.AllowedMentions(roles=True))
+
+    @ping_staff.autocomplete('role')
+    async def ping_staff_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        return [
+            app_commands.Choice(name=role_name, value=role_name)
+            for role_name in self.helper_staff_roles if current.lower() in role_name.lower()
+        ]
+
     @app_commands.command(name="annul_current_mogi")
     @app_commands.guild_only()
     async def annul_current_mogi(self, interaction: discord.Interaction):
@@ -463,7 +512,7 @@ class SquadQueue(commands.Cog):
         """Mogis will begin to be scheduled again.  Staff use only."""
         self.LAUNCH_NEW_EVENTS = True
         await interaction.response.send_message("Mogis will resume scheduling.")
-    
+
     @app_commands.command(name="change_event_time")
     @app_commands.guild_only()
     async def change_event_time(self, interaction: discord.Interaction, event_time: int):
@@ -481,6 +530,11 @@ class SquadQueue(commands.Cog):
     async def change_mmr_threshold(self, interaction: discord.Interaction, mmr_threshold: int):
         """Change the maximum MMR gap allowed for a room."""
         self.room_mmr_threshold = mmr_threshold
+        try:
+            with open(MMR_THRESHOLD_PKL, 'wb') as f:
+                dill.dump(self.room_mmr_threshold, f)
+        except:
+            print(traceback.format_exc())
         await interaction.response.send_message(f"MMR Threshold for Queue Rooms has been modified to {mmr_threshold} MMR.")
 
     @app_commands.command(name="peek_bot_config")
@@ -556,7 +610,7 @@ class SquadQueue(commands.Cog):
         self.sq_times = []
 
         await interaction.response.send_message("Cleared list of Squad Queue Times.")
-    
+
     @app_commands.command(name="update_tier_info")
     @app_commands.guild_only()
     async def update_tier_info(self, interaction: discord.Interaction):
@@ -767,7 +821,7 @@ class SquadQueue(commands.Cog):
             except Exception as e:
                 print("Late Player message has failed to send.", flush=True)
                 print(traceback.format_exc())
-    
+
         # We could have used asyncio.call_later(120, handle_voting_and_history)
         # and removed asyncio.sleep(120) in handle_voting_and_history
         asyncio.create_task(SquadQueue.handle_voting_and_history(self.ongoing_event, self.HISTORY_CHANNEL))
@@ -870,7 +924,6 @@ class SquadQueue(commands.Cog):
                 return
             next_event_open_time = self.compute_next_event_open_time()
             next_event_start_time = next_event_open_time + self.JOINING_TIME
-            print(f"Next event open time: {next_event_open_time}", flush=True)
             # We don't want to schedule the next event if it would open after it's joining period and during its extension period
             if next_event_start_time < datetime.now(timezone.utc):
                 return
@@ -894,6 +947,28 @@ class SquadQueue(commands.Cog):
             for mogi in delete_queue:
                 print(f"Deleting {mogi.start_time} Mogi at {curr_time}", flush=True)
                 self.old_events.remove(mogi)
+        except Exception as e:
+            print(traceback.format_exc())
+
+    @tasks.loop(hours=24)
+    async def refresh_helper_roles(self):
+        """Refreshes the helper staff role names for the /ping_staff command using the role IDs in the config"""
+        try:
+            helper_staff_role_ids = self.bot.config["helper_staff_roles"]
+            # In my experience, large servers experience caching issues.
+            # This is a forced API call which guarantees the role information will be up-to-date.
+            all_roles = await self.GUILD.fetch_roles()
+            updated_roles = {}
+            for role_id in helper_staff_role_ids:
+                needle: discord.Role = discord.utils.find(lambda n: role_id == n.id, all_roles)
+                if needle is not None:
+                    updated_roles[needle.name] = needle
+            # As a fail safe, if we didn't add any new roles, either due to a misconfiguration or an internal discord
+            # issue, only update if we found one or more of the roles
+            if len(updated_roles) > 0:
+                # We use clear and update to ensure any *references* to the original dictionary are updated
+                self.helper_staff_roles.clear()
+                self.helper_staff_roles.update(updated_roles)
         except Exception as e:
             print(traceback.format_exc())
 
@@ -976,7 +1051,7 @@ class SquadQueue(commands.Cog):
             return
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot):
     await bot.add_cog(SquadQueue(bot))
 
 

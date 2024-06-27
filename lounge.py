@@ -50,6 +50,13 @@ async def on_command_error(ctx, error):
     raise error
 
 
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+    if isinstance(error, discord.app_commands.errors.CommandOnCooldown):
+        await interaction.response.send_message(f'You are on cooldown. Try again in {round(error.retry_after)}s', ephemeral=True)
+    else:
+        raise error
+
 @bot.event
 async def setup_hook():
     for extension in initial_extensions:

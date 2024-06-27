@@ -38,6 +38,13 @@
             792891432301625364,
             877629421811540016
     ],
+    "helper_staff_roles": [
+        389252697284542465,
+        399384750923579392,
+        399382503825211393
+    ],
+    "restricted_role_id": 797208908153618452,
+    "muted_role_id": 434887701662007296,
     "queue_messages": true,
     "sec_between_queue_msgs": 2,
     "username": "username",
