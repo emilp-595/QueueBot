@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import random
 import discord
 from datetime import datetime, timezone, timedelta
 import time
 from discord.ui import View
-from typing import List
+from typing import List, Callable
 
 
 class Mogi:
@@ -279,18 +281,17 @@ Winner: {format_[1]}
 
 
 class JoinView(View):
-    def __init__(self, room: Room, get_mmr, bottom_room_num):
+    def __init__(self, room: Room, get_mmr, bottom_room_num, is_restricted: Callable[[discord.User | discord.Member], bool] | None = None):
         super().__init__(timeout=1200)
         self.room = room
         self.get_mmr = get_mmr
         self.bottom_room_num = bottom_room_num
+        self.is_restricted = is_restricted
 
     @discord.ui.button(label="Join Room")
-    async def button_callback(self, interaction, button):
+    async def button_callback(self, interaction: discord.Interaction, button):
         await interaction.response.defer()
-        muted_role_id = 434887701662007296
-        restricted_role_id = 797208908153618452
-        if interaction.user.get_role(muted_role_id) or interaction.user.get_role(restricted_role_id):
+        if self.is_restricted is not None and self.is_restricted(interaction.user):
             await interaction.followup.send(
                 "Players with the muted or restricted role cannot use the sub button.", ephemeral=True)
             return
