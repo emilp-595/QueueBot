@@ -9,19 +9,35 @@ from typing import List, Callable
 
 
 class Mogi:
-    def __init__(self, sq_id: int, size: int, mogi_channel: discord.TextChannel,
+    def __init__(self, sq_id: int, players_per_team: int, teams_per_room: int, mogi_channel: discord.TextChannel,
                  is_automated=False, start_time=None):
         self.started = False
         self.gathering = False
         self.making_rooms_run = False
         self.making_rooms_run_time = None
         self.sq_id = sq_id
-        self.size = size
+        self.players_per_team = players_per_team
+        self.teams_per_room = teams_per_room
         self.mogi_channel = mogi_channel
         self.teams: List[Team] = []
         self.rooms: List[Room] = []
         self.is_automated = is_automated
         self.start_time = start_time if is_automated else None
+
+    @property
+    def num_players(self):
+        """Returns the total number of players in teams where all players have confirmed"""
+        return self.num_teams * self.players_per_team
+
+    @property
+    def num_teams(self):
+        """Returns the total number of teams where all players have confirmed"""
+        return self.count_registered()
+
+    @property
+    def num_rooms(self):
+        """Returns the number of rooms based on teams where all players have confirmed"""
+        return self.num_teams // self.teams_per_room
 
     def check_player(self, member):
         for team in self.teams:
@@ -75,10 +91,10 @@ class Room:
 class Team:
     def __init__(self, players):
         self.players = players
-        self.avg_mmr = sum([p.mmr for p in self.players]) / len(self.players)
 
-    def recalc_avg(self):
-        self.avg_mmr = sum([p.mmr for p in self.players]) / len(self.players)
+    @property
+    def avg_mmr(self):
+        return sum([p.mmr for p in self.players]) / len(self.players)
 
     def is_registered(self):
         """Returns if all players on the team are registered"""
@@ -100,7 +116,6 @@ class Team:
         for i, player in enumerate(self.players):
             if player == sub_out:
                 self.players[i] = sub_in
-                self.recalc_avg()
                 return
 
     def num_confirmed(self):
