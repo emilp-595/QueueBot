@@ -333,7 +333,7 @@ class JoinView(View):
             self.room.mmr_high = 999999
         if self.room.room_num == self.bottom_room_num:
             self.room.mmr_low = -999999
-        if isinstance(user_mmr, int) and user_mmr < self.room.mmr_high + 500 and user_mmr > self.room.mmr_low - 500:
+        if isinstance(user_mmr, int) and self.room.mmr_high + 500 > user_mmr > self.room.mmr_low - 500:
             button.disabled = True
             await interaction.followup.edit_message(interaction.message.id, view=self)
             mention = interaction.user.mention
