@@ -8,6 +8,9 @@ from dateutil.parser import parse
 from datetime import datetime, timezone, timedelta
 import time
 import json
+
+import common
+from common import divide_chunks
 from mmr import mkw_mmr, get_mmr_from_discord_id
 from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier
 import asyncio
@@ -31,6 +34,22 @@ def is_restricted(user: discord.User | discord.Member, config: dict) -> bool:
     restricted_role_id = config.get("restricted_role_id")
     return (muted_role_id is not None and user.get_role(muted_role_id)) \
         or (restricted_role_id is not None and user.get_role(restricted_role_id))
+
+
+def basic_threshold_players_allowed(players: List[Player], threshold: int) -> bool:
+    """Returns True if the highest player's rating minus the lowest player's rating is below the given threshold"""
+    sorted_players = sorted(players, key=lambda p: p.mmr)
+    return (sorted_players[-1].mmr - sorted_players[0].mmr) <= threshold
+
+
+def mkw_players_allowed(players: List[Player], threshold: int) -> bool:
+    """Returns true if the given list of players would be allowed to play together"""
+    return basic_threshold_players_allowed(players, threshold)
+
+
+def mk8dx_players_allowed(players: List[Player], threshold: int) -> bool:
+    """Returns true if the given list of players would be allowed to play together"""
+    return basic_threshold_players_allowed(players, threshold)
 
 
 class SquadQueue(commands.Cog):
@@ -355,7 +374,7 @@ class SquadQueue(commands.Cog):
                 await self.delete_list_messages(0)
                 return
 
-            mogi_list = mogi.confirmed_list()
+            mogi_list = mogi.confirmed_teams()
 
             # Remove late players from the list to display separately
             full_list_length = len(mogi_list)
@@ -696,12 +715,10 @@ class SquadQueue(commands.Cog):
     # make thread channels while the event is gathering instead of at the end,
     # since discord only allows 50 thread channels to be created per 5 minutes.
     async def check_room_channels(self, mogi):
-        num_teams = mogi.count_registered()
-        num_rooms = int(num_teams / (12 / mogi.players_per_team))
         num_created_rooms = len(mogi.rooms)
-        if num_created_rooms >= num_rooms:
+        if num_created_rooms >= mogi.max_possible_rooms:
             return
-        for i in range(num_created_rooms, num_rooms):
+        for i in range(num_created_rooms, mogi.max_possible_rooms):
             minute = mogi.start_time.minute
             if len(str(minute)) == 1:
                 minute = '0' + str(minute)
@@ -730,8 +747,7 @@ class SquadQueue(commands.Cog):
             return
         if mogi.making_rooms_run and started_automatically:
             return
-        num_rooms = int(mogi.count_registered() / (12 / mogi.players_per_team))
-        if num_rooms == 0:
+        if mogi.max_possible_rooms == 0:
             self.ongoing_event = None
             await mogi.mogi_channel.send(f"Not enough players to fill a single room! This mogi will be cancelled.")
             return
@@ -744,70 +760,65 @@ class SquadQueue(commands.Cog):
         if was_gathering:
             await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
 
-
-        teams_per_room = int(12 / mogi.players_per_team)
-        num_teams = int(num_rooms * teams_per_room)
-        final_list = mogi.confirmed_list()[0:num_teams]
-        sorted_list = sorted(final_list, reverse=True)
-
         extra_members = []
-        if str(mogi.mogi_channel.guild.id) in self.bot.config["members_for_channels"].keys():
-            extra_members_ids = self.bot.config["members_for_channels"][str(
-                mogi.mogi_channel.guild.id)]
-            for m in extra_members_ids:
-                extra_members.append(mogi.mogi_channel.guild.get_member(m))
-        if str(mogi.mogi_channel.guild.id) in self.bot.config["roles_for_channels"].keys():
-            extra_roles_ids = self.bot.config["roles_for_channels"][str(
-                mogi.mogi_channel.guild.id)]
-            for r in extra_roles_ids:
-                extra_members.append(mogi.mogi_channel.guild.get_role(r))
 
-        rooms = mogi.rooms
-        for i in range(num_rooms):
-            msg = f"`Room {i+1} - Player List`\n"
-            mentions = ""
-            start_index = i*teams_per_room
-            player_list = []
-            for j in range(teams_per_room):
-                msg += f"`{j+1}.` "
-                team = sorted_list[start_index+j]
-                player_list.append(sorted_list[start_index+j].get_first_player())
-                msg += ", ".join([p.lounge_name for p in team.players])
-                msg += f" ({int(team.avg_mmr)} MMR)\n"
-                mentions += " ".join([p.member.mention for p in team.players])
-                mentions += " "
-            room_msg = msg
-            mentions += " ".join([m.mention for m in extra_members if m is not None])
-            room_msg += "\nVote for format FFA, 2v2, 3v3, 4v4, or 6v6.\n"
-            room_msg += mentions
-            curr_room = rooms[i]
-            room_channel = curr_room.thread
-            curr_room.teams = sorted_list[start_index:start_index+teams_per_room]
-            curr_room.mmr_low = player_list[11].mmr
-            curr_room.mmr_high = player_list[0].mmr
-            if curr_room.mmr_high - curr_room.mmr_low > self.room_mmr_threshold:
+        extra_members_ids = self.bot.config["members_for_channels"].get(str(mogi.mogi_channel.guild.id), [])
+        for m in extra_members_ids:
+            extra_members.append(mogi.mogi_channel.guild.get_member(m))
+        extra_roles_ids = self.bot.config["roles_for_channels"].get(str(mogi.mogi_channel.guild.id), [])
+        for r in extra_roles_ids:
+            extra_members.append(mogi.mogi_channel.guild.get_role(r))
+
+        # Support for both server to implement their own algorithm for a player list being allowed
+        # For now, both servers have a simple rating range check that a list of players must meet,
+        # but each server could implement more complex checks on a given list of players.
+        if common.SERVER is common.Server.MKW:
+            def allowed_players_check(players):
+                return mkw_players_allowed(players, self.room_mmr_threshold)
+        elif common.SERVER is common.Server.MK8DX:
+            def allowed_players_check(players):
+                return mk8dx_players_allowed(players, self.room_mmr_threshold)
+
+        all_confirmed_players = mogi.players_on_confirmed_teams()
+        regular_player_list = all_confirmed_players[:mogi.num_players//mogi.players_per_room]
+        late_player_list = all_confirmed_players[mogi.num_players//mogi.players_per_room:]
+        proposed_list = mogi.generate_proposed_list(allowed_players_check)
+        for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
+            msg = f"`Room {room_number} - Player List`\n"
+            for player_num, player in enumerate(room_players, 1):
+                added_str = " *(Added from late players)*" if player in late_player_list else ""
+                msg += f"""`{player_num}.` {player.lounge_name} ({player.mmr} MMR){added_str}\n"""
+            if allowed_players_check(room_players):
                 msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
+                curr_room = mogi.rooms[room_number - 1]
+                curr_room.teams = [Team([p]) for p in room_players]
+                player_mentions = " ".join([p.mention for p in room_players])
+                extra_member_mentions = " ".join([m.mention for m in extra_members if m is not None])
+                room_msg = f"""{msg}
+Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
+{player_mentions} {extra_member_mentions}"""
                 try:
-                    await room_channel.send(room_msg)
-                    view = VoteView(player_list, room_channel, mogi, self.TIER_INFO)
+                    await curr_room.thread.send(room_msg)
+                    view = VoteView(room_players, curr_room.thread, mogi, self.TIER_INFO)
                     curr_room.view = view
-                    await room_channel.send(view=view)
+                    await curr_room.thread.send(view=view)
                 except discord.DiscordException:
                     print(traceback.format_exc())
+
             try:
                 await mogi.mogi_channel.send(msg)
-                print(f"Mogi Channel message for room {i+1} has failed to send.", flush=True)
             except discord.DiscordException:
+                print(f"Mogi Channel message for room {room_number} has failed to send.", flush=True)
                 print(traceback.format_exc())
-        if num_teams < mogi.count_registered():
-            missed_teams = mogi.confirmed_list(
-            )[num_teams:mogi.count_registered()]
+
+        # Compute the list of "late" players that didn't get into any room
+        not_in_proposed_list = [p for p in all_confirmed_players if p not in proposed_list]
+        if len(not_in_proposed_list) > 0:
             msg = "`Late players:`\n"
-            for i in range(len(missed_teams)):
-                msg += f"`{i+1}.` "
-                msg += ", ".join([p.lounge_name for p in missed_teams[i].players])
-                msg += f" ({int(missed_teams[i].avg_mmr)} MMR)\n"
+            for i, player in enumerate(not_in_proposed_list, 1):
+                removed_str = " *(Removed from player list)*" if player in regular_player_list else ""
+                msg += f"`{i+1}.` {player.lounge_name} ({int(player.mmr)} MMR) {removed_str}\n"
             try:
                 await mogi.mogi_channel.send(msg)
             except discord.DiscordException:
@@ -924,8 +935,8 @@ class SquadQueue(commands.Cog):
                 await self.MOGI_CHANNEL.send(
                     "Squad Queue is currently going on at this hour!  The queue will remain closed.")
             self.next_event = Mogi(sq_id=1,
-                                   players_per_team=1,
-                                   teams_per_room=12,
+                                   max_players_per_team=1,
+                                   players_per_room=12,
                                    mogi_channel=self.MOGI_CHANNEL,
                                    is_automated=True,
                                    start_time=next_event_start_time)
@@ -972,7 +983,7 @@ class SquadQueue(commands.Cog):
         mogi_time = discord.utils.format_dt(mogi.start_time, style="F")
         mogi_time_relative = discord.utils.format_dt(
             mogi.start_time, style="R")
-        return f"`#{mogi.sq_id}` **{mogi.players_per_team}v{mogi.players_per_team}:** {mogi_time} - {mogi_time_relative}"
+        return f"`#{mogi.sq_id}` **{mogi.max_player_per_team}v{mogi.max_player_per_team}:** {mogi_time} - {mogi_time_relative}"
 
     @commands.command(name="sync")
     @commands.is_owner()

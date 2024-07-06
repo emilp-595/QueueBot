@@ -15,15 +15,20 @@ def average(list_: List[int | float]) -> float:
 
 
 class Mogi:
-    def __init__(self, sq_id: int, players_per_team: int, teams_per_room: int, mogi_channel: discord.TextChannel,
+    ALGORITHM_STATUS_INSUFFICIENT_PLAYERS = 1
+    ALGORITHM_STATUS_2_OR_MORE_ROOMS = 2
+    ALGORITHM_STATUS_SUCCESS_FOUND = 3
+    ALGORITHM_STATUS_SUCCESS_EMPTY = 4
+
+    def __init__(self, sq_id: int, max_players_per_team: int, players_per_room: int, mogi_channel: discord.TextChannel,
                  is_automated=False, start_time=None):
         self.started = False
         self.gathering = False
         self.making_rooms_run = False
         self.making_rooms_run_time = None
         self.sq_id = sq_id
-        self.players_per_team = players_per_team
-        self.teams_per_room = teams_per_room
+        self.max_player_per_team = max_players_per_team
+        self.players_per_room = players_per_room
         self.mogi_channel = mogi_channel
         self.teams: List[Team] = []
         self.rooms: List[Room] = []
@@ -41,6 +46,76 @@ class Mogi:
         return self.count_registered()
 
     @property
+    def max_possible_rooms(self) -> int:
+        """Returns the maximum possible number of rooms based on teams where all players have confirmed. Depending on range cutoffs or
+        the specifics of the algorithm used to make the actual rooms, this number could be higher than the final number of rooms."""
+        return self.num_players // self.players_per_room
+
+    @staticmethod
+    def _minimize_range(players: List[Player], num_players: int) -> List[Player] | None:
+        """Returns a collection of players (the number of players in the collection is the given num_players parameter) whose has the smallest
+        mmr spread. If the number of players in the given list is smaller than the request num_players collection size, or the num_players is less than 2 (doesn't make sense), None is returned."""
+        # The number of players we were given is less than the collection size we are supposed to return, so return None
+        if len(players) < num_players:
+            return None
+        if num_players <= 1:
+            return None
+        # Sort the players so we easily know the player with the lowest rating and highest rating in any given collection
+        sorted_players = sorted(players, key=lambda p: p.mmr)
+        # In the beginning, the best found collection of players is the first 12
+        best_collection = sorted_players[0:num_players]
+        cur_min = best_collection[-1].mmr - best_collection[0].mmr
+        # Find the collection of players with the least rating spread
+        for lowest_player_index, highest_player in enumerate(sorted_players[num_players:], 1):
+            lowest_player = sorted_players[lowest_player_index]
+            cur_range = highest_player.mmr - lowest_player.mmr
+            if cur_range < cur_min:
+                cur_min = cur_range
+                best_collection = sorted_players[lowest_player_index:lowest_player_index + num_players]
+        return best_collection
+
+    def _one_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[
+        List[Player], int]:
+        if self.max_possible_rooms == 0:
+            return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
+        if self.max_possible_rooms > 1:
+            confirmed_players = self.players_on_confirmed_teams()
+            return confirmed_players[0:self.players_per_room * self.max_possible_rooms], Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS
+        # At this point, we can only make one possible room, so our algorithm will be used
+        confirmed_players = self.players_on_confirmed_teams()
+        cur_check_list = list(confirmed_players[0:self.players_per_room])
+        late_players = list(confirmed_players[self.players_per_room:])
+
+        while True:
+            best_collection = Mogi._minimize_range(cur_check_list, self.players_per_room)
+            if valid_players_check(best_collection):
+                return best_collection, Mogi.ALGORITHM_STATUS_SUCCESS_FOUND
+            if len(late_players) == 0:
+                break
+            cur_check_list.append(late_players.pop(0))
+        # Even after checking the late players, we did not find
+        return [], Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY
+
+    def _mk8dx_generate_final_list(self) -> List[Player]:
+        confirmed_players = self.players_on_confirmed_teams()
+        return confirmed_players[0:self.players_per_room * self.max_possible_rooms]
+
+    def _mkw_generate_final_list(self, valid_players_check: Callable[[List[Player]], bool]) -> List[Player]:
+        result, _ = self._one_room_final_list_algorithm(valid_players_check)
+        return result
+
+    def generate_proposed_list(self, valid_players_check: Callable[[List[Player]], bool] = None) -> List[Player]:
+        """Algorithm that generates a proposed list of players that will play. This algorithm may differ between
+        MK8DX and MKW. The algorithm is allowed to propose any list of players it wants to. Among several possibilities,
+        this allows the algorithm to change the order of the players in the returned list, add or remove players,
+        and more.
+
+        The algorithm may or may not enforce a hard check of the valid players. That is up to the implemented
+        algorithm."""
+        if common.SERVER is common.Server.MK8DX:
+            return self._mk8dx_generate_final_list()
+        elif common.SERVER is common.Server.MKW:
+            return self._mkw_generate_final_list(valid_players_check)
 
     def check_player(self, member):
         for team in self.teams:
@@ -52,7 +127,7 @@ class Mogi:
         """Returns the number of teams that are registered"""
         return sum(1 for team in self.teams if team.all_registered())
 
-    def confirmed_list(self):
+    def confirmed_teams(self) -> List["Team"]:
         return [team for team in self.teams if team.all_registered()]
 
     def players_on_confirmed_teams(self) -> List[Player]:
@@ -131,9 +206,6 @@ class Team:
             if player.member.id == member.id:
                 return player
         return None
-
-    def get_first_player(self):
-        return self.players[0]
 
     def num_confirmed(self):
         """Returns the number of confirmed players in the team"""
