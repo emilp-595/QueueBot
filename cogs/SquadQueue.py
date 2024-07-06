@@ -797,9 +797,8 @@ class SquadQueue(commands.Cog):
                     print(traceback.format_exc())
             try:
                 await mogi.mogi_channel.send(msg)
-            except Exception as e:
-                print(
-                    f"Mogi Channel message for room {i+1} has failed to send.", flush=True)
+            except discord.DiscordException as e:
+                print(f"Mogi Channel message for room {i+1} has failed to send.", flush=True)
                 print(traceback.format_exc())
         if num_teams < mogi.count_registered():
             missed_teams = mogi.confirmed_list(
