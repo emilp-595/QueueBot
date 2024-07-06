@@ -50,10 +50,10 @@ class Mogi:
 
     def count_registered(self):
         """Returns the number of teams that are registered"""
-        return sum(1 for team in self.teams if team.is_registered())
+        return sum(1 for team in self.teams if team.all_registered())
 
     def confirmed_list(self):
-        return [team for team in self.teams if team.is_registered()]
+        return [team for team in self.teams if team.all_registered()]
 
     def remove_id(self, squad_id: int):
         confirmed = self.confirmed_list()
@@ -99,7 +99,7 @@ class Team:
     def avg_mmr(self):
         return sum([p.mmr for p in self.players]) / len(self.players)
 
-    def is_registered(self):
+    def all_registered(self):
         """Returns if all players on the team are registered"""
         return all(player.confirmed for player in self.players)
 
