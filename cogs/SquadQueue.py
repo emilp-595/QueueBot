@@ -819,7 +819,7 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
             msg = "`Late players:`\n"
             for i, player in enumerate(not_in_proposed_list, 1):
                 removed_str = " *(Removed from player list)*" if player in regular_player_list else ""
-                msg += f"`{i+1}.` {player.lounge_name} ({int(player.mmr)} MMR) {removed_str}\n"
+                msg += f"`{i}.` {player.lounge_name} ({int(player.mmr)} MMR) {removed_str}\n"
             try:
                 await mogi.mogi_channel.send(msg)
             except discord.DiscordException:
