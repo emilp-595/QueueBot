@@ -118,7 +118,7 @@ class Team:
 
     @property
     def avg_mmr(self):
-        return sum([p.mmr for p in self.players]) / len(self.players)
+        return average([p.mmr for p in self.players])
 
     def all_registered(self):
         """Returns if all players on the team are registered"""
