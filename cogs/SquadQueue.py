@@ -787,7 +787,7 @@ class SquadQueue(commands.Cog):
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
             msg = f"`Room {room_number} - Player List`\n"
             for player_num, player in enumerate(room_players, 1):
-                added_str = " *(Added from late players)*" if player in late_player_list else ""
+                added_str = ": **Added from late players**" if player in late_player_list else ""
                 msg += f"""`{player_num}.` {player.lounge_name} ({player.mmr} MMR){added_str}\n"""
             if allowed_players_check(room_players):
                 msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
@@ -818,7 +818,7 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
         if len(not_in_proposed_list) > 0:
             msg = "`Late players:`\n"
             for i, player in enumerate(not_in_proposed_list, 1):
-                removed_str = " *(Removed from player list)*" if player in regular_player_list else ""
+                removed_str = ": **Removed from player list**" if player in regular_player_list else ""
                 msg += f"`{i}.` {player.lounge_name} ({int(player.mmr)} MMR) {removed_str}\n"
             try:
                 await mogi.mogi_channel.send(msg)
