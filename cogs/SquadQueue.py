@@ -793,7 +793,7 @@ class SquadQueue(commands.Cog):
                     view = VoteView(player_list, room_channel, mogi, self.TIER_INFO)
                     curr_room.view = view
                     await room_channel.send(view=view)
-                except Exception as e:
+                except discord.DiscordException as e:
                     print(traceback.format_exc())
                     err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
                     err_msg += mentions
