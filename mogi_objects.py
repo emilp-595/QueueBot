@@ -33,7 +33,7 @@ class Mogi:
     @property
     def num_players(self):
         """Returns the total number of players in teams where all players have confirmed"""
-        return self.num_teams * self.players_per_team
+        return sum(len(t.players) for t in self.teams if t.all_registered())
 
     @property
     def num_teams(self):
@@ -55,6 +55,8 @@ class Mogi:
     def confirmed_list(self):
         return [team for team in self.teams if team.all_registered()]
 
+    def players_on_confirmed_teams(self) -> List[Player]:
+        return flatten([team.players for team in self.confirmed_teams()])
 
     def is_room_thread(self, channel_id: int):
         for room in self.rooms:
