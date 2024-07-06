@@ -166,11 +166,11 @@ class Team:
 
 
 class Player:
-    def __init__(self, member, lounge_name, mmr):
+    def __init__(self, member: discord.Member, lounge_name: str, mmr: int, confirmed=False):
         self.member = member
         self.lounge_name = lounge_name
         self.mmr = mmr
-        self.confirmed = False
+        self.confirmed = confirmed
         self.score = 0
 
 
