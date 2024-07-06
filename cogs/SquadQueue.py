@@ -793,12 +793,12 @@ class SquadQueue(commands.Cog):
                     view = VoteView(player_list, room_channel, mogi, self.TIER_INFO)
                     curr_room.view = view
                     await room_channel.send(view=view)
-                except discord.DiscordException as e:
+                except discord.DiscordException:
                     print(traceback.format_exc())
             try:
                 await mogi.mogi_channel.send(msg)
-            except discord.DiscordException as e:
                 print(f"Mogi Channel message for room {i+1} has failed to send.", flush=True)
+            except discord.DiscordException:
                 print(traceback.format_exc())
         if num_teams < mogi.count_registered():
             missed_teams = mogi.confirmed_list(
@@ -810,7 +810,7 @@ class SquadQueue(commands.Cog):
                 msg += f" ({int(missed_teams[i].avg_mmr)} MMR)\n"
             try:
                 await mogi.mogi_channel.send(msg)
-            except Exception as e:
+            except discord.DiscordException:
                 print("Late Player message has failed to send.", flush=True)
                 print(traceback.format_exc())
 
