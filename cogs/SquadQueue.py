@@ -389,7 +389,7 @@ class SquadQueue(commands.Cog):
             sorted_mogi_list = sorted(mogi_list, reverse=True)
             msg = f"**Queue closing: {discord.utils.format_dt(mogi.start_time)}**\n\n"
             msg += f"**Last Updated:** {discord.utils.format_dt(datetime.now(timezone.utc), style='R')}\n\n"
-            msg += "**Current Mogi List:**\n\n"
+            msg += "**Current Mogi List:**\n"
             for i in range(len(sorted_mogi_list)):
                 msg += f"{i + 1}) "
                 msg += ", ".join([p.lounge_name for p in sorted_mogi_list[i].players])
