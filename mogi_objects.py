@@ -116,6 +116,10 @@ class Team:
     def __init__(self, players: List["Player"]):
         self.players = players
 
+    def get_mentions(self):
+        """Return a string where all players on the team are discord @'d"""
+        return " ".join([p.member.mention for p in self.players])
+
     @property
     def avg_mmr(self):
         return average([p.mmr for p in self.players])
