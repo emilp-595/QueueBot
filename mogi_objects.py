@@ -180,6 +180,9 @@ class Player:
             return "<@!1>"
         return self.member.mention
 
+    def __repr__(self):
+        return f"{__class__.__name__}(member={self.member}, lounge_name={self.lounge_name}, mmr={self.mmr}, confirmed={self.confirmed})"
+
 
 class VoteView(View):
     def __init__(self, players, thread, mogi: Mogi, tier_info):
