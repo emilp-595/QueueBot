@@ -795,10 +795,6 @@ class SquadQueue(commands.Cog):
                     await room_channel.send(view=view)
                 except discord.DiscordException as e:
                     print(traceback.format_exc())
-                    err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
-                    err_msg += mentions
-                    msg += err_msg
-                    room_channel = None
             try:
                 await mogi.mogi_channel.send(msg)
             except Exception as e:
