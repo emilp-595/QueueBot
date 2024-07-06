@@ -1,6 +1,11 @@
+import json
 from typing import TypeVar, Type, List
 
 _T = TypeVar('T')
+
+with open('./config.json', 'r') as cjson:
+    CONFIG = json.load(cjson)
+
 
 def divide_chunks(list_: list, chunk_size: int):
     # looping till length l
