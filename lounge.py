@@ -11,7 +11,7 @@ bot = commands.Bot(command_prefix=['!', '^'],
                    case_insensitive=True, intents=intents, help_command=None)
 
 initial_extensions = ['cogs.SquadQueue']
-bot.config = common.config
+bot.config = common.CONFIG
 
 
 @bot.event
