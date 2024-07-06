@@ -55,13 +55,6 @@ class Mogi:
     def confirmed_list(self):
         return [team for team in self.teams if team.all_registered()]
 
-    def remove_id(self, squad_id: int):
-        confirmed = self.confirmed_list()
-        if squad_id < 1 or squad_id > len(confirmed):
-            return None
-        squad = confirmed[squad_id - 1]
-        self.teams.remove(squad)
-        return squad
 
     def is_room_thread(self, channel_id: int):
         for room in self.rooms:
