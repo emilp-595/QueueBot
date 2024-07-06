@@ -789,7 +789,7 @@ class SquadQueue(commands.Cog):
             for player_num, player in enumerate(room_players, 1):
                 added_str = ": **Added from late players**" if player in late_player_list else ""
                 msg += f"""`{player_num}.` {player.lounge_name} ({player.mmr} MMR){added_str}\n"""
-            if allowed_players_check(room_players):
+            if not allowed_players_check(room_players):
                 msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
                 curr_room = mogi.rooms[room_number - 1]
