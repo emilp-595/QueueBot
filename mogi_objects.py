@@ -173,6 +173,13 @@ class Player:
         self.confirmed = confirmed
         self.score = 0
 
+    @property
+    def mention(self):
+        """String that, when sent in a Discord message, will mention and ping the player."""
+        if self.member is None:
+            return "<@!1>"
+        return self.member.mention
+
 
 class VoteView(View):
     def __init__(self, players, thread, mogi: Mogi, tier_info):
