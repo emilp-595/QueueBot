@@ -78,7 +78,7 @@ class Mogi:
 
 class Room:
     def __init__(self, teams, room_num: int, thread: discord.Thread):
-        self.teams = teams
+        self.teams: List["Team"] = teams
         self.room_num = room_num
         self.thread = thread
         self.view = None
@@ -113,7 +113,7 @@ class Room:
 
 
 class Team:
-    def __init__(self, players):
+    def __init__(self, players: List["Player"]):
         self.players = players
 
     @property
@@ -127,7 +127,7 @@ class Team:
     def has_player(self, member):
         return any(player.member.id == member.id for player in self.players)
 
-    def get_player(self, member):
+    def get_player(self, member: discord.Member) -> Player | None:
         for player in self.players:
             if player.member.id == member.id:
                 return player
