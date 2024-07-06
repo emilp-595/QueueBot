@@ -136,12 +136,6 @@ class Team:
     def get_first_player(self):
         return self.players[0]
 
-    def sub_player(self, sub_out, sub_in):
-        for i, player in enumerate(self.players):
-            if player == sub_out:
-                self.players[i] = sub_in
-                return
-
     def num_confirmed(self):
         """Returns the number of confirmed players in the team"""
         return sum(1 for player in self.players if player.confirmed)
