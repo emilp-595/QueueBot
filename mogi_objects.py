@@ -81,11 +81,26 @@ class Room:
         self.teams = teams
         self.room_num = room_num
         self.thread = thread
-        self.mmr_average = 0
-        self.mmr_high = None
-        self.mmr_low = None
         self.view = None
         self.finished = False
+
+    @property
+    def mmr_high(self) -> int:
+        if self.teams is None:
+            return None
+        return max(self.players, key=lambda p: p.mmr).mmr
+
+    @property
+    def mmr_low(self) -> int:
+        if self.teams is None:
+            return None
+        return min(self.players, key=lambda p: p.mmr).mmr
+
+    @property
+    def avg_mmr(self) -> float:
+        if self.teams is None:
+            return 0
+        return average([p.mmr for p in self.players])
 
     def get_player_list(self):
         return [player.member.id for team in self.teams for player in team.players]
