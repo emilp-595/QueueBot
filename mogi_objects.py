@@ -102,6 +102,12 @@ class Room:
             return 0
         return average([p.mmr for p in self.players])
 
+    @property
+    def players(self) -> List[Player]:
+        if self.teams is None:
+            return []
+        return flatten([t.players for t in self.teams])
+
     def get_player_list(self):
         return [player.member.id for team in self.teams for player in team.players]
 
