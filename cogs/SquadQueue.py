@@ -1021,6 +1021,24 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
         await self.check_room_channels(mogi)
         await self.check_num_teams(mogi)
 
+    @commands.command(name="debug_add_many_ratings")
+    @commands.is_owner()
+    async def debug_add_many_ratings(self, ctx, ratings: str):
+        mogi = self.get_mogi(ctx)
+        if mogi is None:
+            return
+        if (not await self.is_started(ctx, mogi)
+                or not await self.is_gathering(ctx, mogi)):
+            return
+        for i, rating in enumerate(ratings.split(" ")):
+            if rating.isdecimal():
+                player = Player(ctx.author, f"{ctx.author.display_name} {i}", int(rating), confirmed=True)
+                mogi.teams.append(Team([player]))
+        msg = f"Players added!"
+        await self.queue_or_send(ctx, msg)
+        await self.check_room_channels(mogi)
+        await self.check_num_teams(mogi)
+
     @commands.command(name="debug_add_many_players")
     @commands.is_owner()
     async def debug_add_many_players(self, ctx, members: commands.Greedy[discord.Member]):
