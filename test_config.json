@@ -1,5 +1,7 @@
 {
     "token": "",
+    "lounge": "MKW",
+    "lounge_description": "Valid options are MKW or MK8DX",
     "guild_id": 1228027010836594698,
     "admin_roles": {
         "1228027010836594698": [
