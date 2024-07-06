@@ -41,9 +41,6 @@ class Mogi:
         return self.count_registered()
 
     @property
-    def num_rooms(self):
-        """Returns the number of rooms based on teams where all players have confirmed"""
-        return self.num_teams // self.teams_per_room
 
     def check_player(self, member):
         for team in self.teams:
