@@ -9,6 +9,11 @@ from discord.ui import View
 from typing import List, Tuple, Callable
 
 
+
+def average(list_: List[int | float]) -> float:
+    return sum(list_) / len(list_)
+
+
 class Mogi:
     def __init__(self, sq_id: int, players_per_team: int, teams_per_room: int, mogi_channel: discord.TextChannel,
                  is_automated=False, start_time=None):
