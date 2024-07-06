@@ -48,7 +48,7 @@ class Mogi:
                 return team
         return None
 
-    def count_registered(self):
+    def count_registered(self) -> int:
         """Returns the number of teams that are registered"""
         return sum(1 for team in self.teams if team.all_registered())
 
