@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import common
+from common import flatten
 import random
 import discord
 from datetime import datetime, timezone, timedelta
-import time
 from discord.ui import View
-from typing import List, Callable
+from typing import List, Tuple, Callable
 
 
 class Mogi:
