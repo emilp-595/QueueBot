@@ -1031,7 +1031,7 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
         if (not await self.is_started(ctx, mogi)
                 or not await self.is_gathering(ctx, mogi)):
             return
-        for i, rating in enumerate(ratings):
+        for i, rating in enumerate(ratings, 1):
             if rating.isdecimal():
                 player = Player(ctx.author, f"{ctx.author.display_name} {i}", int(rating), confirmed=True)
                 mogi.teams.append(Team([player]))
