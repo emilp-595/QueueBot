@@ -61,7 +61,7 @@ class Mogi:
         if num_players <= 1:
             return None
         # Sort the players so we easily know the player with the lowest rating and highest rating in any given collection
-        sorted_players = sorted(players, key=lambda p: p.mmr)
+        sorted_players = sorted(players, reverse=True)
         # In the beginning, the best found collection of players is the first 12
         best_collection = sorted_players[0:num_players]
         cur_min = best_collection[-1].mmr - best_collection[0].mmr
@@ -116,6 +116,8 @@ class Mogi:
             return self._mk8dx_generate_final_list()
         elif common.SERVER is common.Server.MKW:
             return self._mkw_generate_final_list(valid_players_check)
+        else:
+            raise ValueError(f"Unknown server in config: {common.Server}")
 
     def check_player(self, member):
         for team in self.teams:
@@ -158,13 +160,13 @@ class Room:
     def mmr_high(self) -> int:
         if self.teams is None:
             return None
-        return max(self.players, key=lambda p: p.mmr).mmr
+        return max(self.players).mmr
 
     @property
     def mmr_low(self) -> int:
         if self.teams is None:
             return None
-        return min(self.players, key=lambda p: p.mmr).mmr
+        return min(self.players).mmr
 
     @property
     def avg_mmr(self) -> float:
@@ -247,6 +249,9 @@ class Player:
 
     def __repr__(self):
         return f"{__class__.__name__}(member={self.member}, lounge_name={self.lounge_name}, mmr={self.mmr}, confirmed={self.confirmed})"
+
+    def __lt__(self, other: Player):
+        return self.mmr < other.mmr
 
 
 class VoteView(View):
