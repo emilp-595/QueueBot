@@ -61,7 +61,7 @@ class Mogi:
         if num_players <= 1:
             return None
         # Sort the players so we easily know the player with the lowest rating and highest rating in any given collection
-        sorted_players = sorted(players, reverse=True)
+        sorted_players = sorted(players)
         # In the beginning, the best found collection of players is the first 12
         best_collection = sorted_players[0:num_players]
         cur_min = best_collection[-1].mmr - best_collection[0].mmr
