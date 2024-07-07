@@ -384,7 +384,8 @@ class SquadQueue(commands.Cog):
                 msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
                 if i % mogi.players_per_room == 0:
                     msg += "ㅤ\n"
-
+            if len(on_time_players) == 0: # Text looks better this way
+                msg += "\n"
             msg += "**Late Players:**\n"
             for i, player in enumerate(late_players, 1):
                 msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
