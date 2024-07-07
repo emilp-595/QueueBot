@@ -783,7 +783,7 @@ class SquadQueue(commands.Cog):
         first_late_player_index = (mogi.num_players//mogi.players_per_room) * mogi.players_per_room
         regular_player_list = all_confirmed_players[:first_late_player_index]
         late_player_list = all_confirmed_players[first_late_player_index:]
-        proposed_list = mogi.generate_proposed_list(allowed_players_check)
+        proposed_list = sorted(mogi.generate_proposed_list(allowed_players_check), reverse=True)
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
             msg = f"`Room {room_number} - Player List`\n"
             for player_num, player in enumerate(room_players, 1):
