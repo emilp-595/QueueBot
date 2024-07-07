@@ -79,7 +79,7 @@ class Mogi:
         if self.max_possible_rooms == 0:
             return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
         if self.max_possible_rooms > 1:
-            confirmed_players = self.players_on_confirmed_teams()
+            confirmed_players = sorted(self.players_on_confirmed_teams())
             return confirmed_players[0:self.players_per_room * self.max_possible_rooms], Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS
         # At this point, we can only make one possible room, so our algorithm will be used
         confirmed_players = self.players_on_confirmed_teams()
@@ -97,7 +97,7 @@ class Mogi:
         return [], Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY
 
     def _mk8dx_generate_final_list(self) -> List[Player]:
-        confirmed_players = self.players_on_confirmed_teams()
+        confirmed_players = sorted(self.players_on_confirmed_teams())
         return confirmed_players[0:self.players_per_room * self.max_possible_rooms]
 
     def _mkw_generate_final_list(self, valid_players_check: Callable[[List[Player]], bool]) -> List[Player]:
