@@ -826,7 +826,7 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
             return
         cur_time = datetime.now(timezone.utc)
         if mogi.start_time <= cur_time:
-            num_leftover_teams = mogi.count_registered() % int((12 / mogi.players_per_team))
+            num_leftover_teams = mogi.count_registered() % int((12 / mogi.max_player_per_team))
             if num_leftover_teams == 0:
                 mogi.gathering = False
                 await self.lockdown(mogi.mogi_channel)
@@ -845,14 +845,14 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
                     mogi.gathering = False
                 elif mogi.start_time <= cur_time and mogi.gathering:
                     # check if there are an even amount of teams since we are past the queue time
-                    num_leftover_teams = mogi.count_registered() % int((12 / mogi.players_per_team))
+                    num_leftover_teams = mogi.count_registered() % int((12 / mogi.max_player_per_team))
                     if num_leftover_teams == 0:
                         mogi.gathering = False
                     else:
                         if int(cur_time.second / 20) == 0:
                             force_time = mogi.start_time + self.EXTENSION_TIME
                             minutes_left = (force_time - cur_time).seconds // 60
-                            x_teams = int(int(12 / mogi.players_per_team) - num_leftover_teams)
+                            x_teams = int(int(12 / mogi.max_player_per_team) - num_leftover_teams)
                             await mogi.mogi_channel.send(
                                 f"Need {x_teams} more player(s) to start immediately. Starting in {minutes_left + 1} minute(s) regardless.")
             if not mogi.gathering:
