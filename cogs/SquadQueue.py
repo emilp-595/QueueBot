@@ -373,33 +373,21 @@ class SquadQueue(commands.Cog):
             if not mogi.gathering:
                 await self.delete_list_messages(0)
                 return
+            all_confirmed_players = mogi.players_on_confirmed_teams()
+            first_late_player_index = (mogi.num_players // mogi.players_per_room) * mogi.players_per_room
+            on_time_players = sorted(all_confirmed_players[:first_late_player_index], reverse=True)
+            late_players = all_confirmed_players[first_late_player_index:]
 
-            mogi_list = mogi.confirmed_teams()
-
-            # Remove late players from the list to display separately
-            full_list_length = len(mogi_list)
-            num_of_rooms = full_list_length // 12
-            num_confirmed_players = num_of_rooms * 12
-            num_late_players = full_list_length - num_confirmed_players
-            late_players = []
-            for i in range(num_confirmed_players, full_list_length):
-                player = mogi_list.pop()
-                late_players.append(player)
-
-            sorted_mogi_list = sorted(mogi_list, reverse=True)
             msg = f"**Queue closing: {discord.utils.format_dt(mogi.start_time)}**\n\n"
             msg += "**Current Mogi List:**\n"
-            for i in range(len(sorted_mogi_list)):
-                msg += f"{i + 1}) "
-                msg += ", ".join([p.lounge_name for p in sorted_mogi_list[i].players])
-                msg += f" ({sorted_mogi_list[i].players[0].mmr} MMR)\n"
-                if ((i + 1) % 12 == 0):
+            for i, player in enumerate(on_time_players, 1):
+                msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
+                if i % mogi.players_per_room == 0:
                     msg += "ㅤ\n"
+
             msg += "**Late Players:**\n"
-            for i in range(len(late_players)):
-                msg += f"{i + 1}) "
-                msg += ", ".join([p.lounge_name for p in late_players[i].players])
-                msg += f" ({late_players[i].players[0].mmr} MMR)\n"
+            for i, player in enumerate(late_players, 1):
+                msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
             msg += f"\n**Last Updated:** {discord.utils.format_dt(datetime.now(timezone.utc), style='R')}"
             message = msg.split("\n")
 
