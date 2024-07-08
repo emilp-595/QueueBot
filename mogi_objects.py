@@ -457,7 +457,7 @@ class JoinView(View):
             return
         mmr_high = 999999 if self.room.room_num == 1 else self.room.mmr_high
         mmr_low = -999999 if self.room.room_num == self.bottom_room_num else self.room.mmr_low
-        if isinstance(user_mmr, int) and mmr_high + 500 > user_mmr > mmr_low - 500:
+        if isinstance(user_mmr, int) and mmr_high + 700 > user_mmr > mmr_low - 700:
             self.room.subs.append(interaction.user.id)
             button.disabled = True
             await interaction.followup.edit_message(interaction.message.id, view=self)
