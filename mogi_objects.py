@@ -348,7 +348,11 @@ Winner: {format_[1]}
 
         penalty_time = self.mogi.making_rooms_run_time + timedelta(minutes=8)
         room_open_time = self.mogi.making_rooms_run_time
-        msg += f"Decide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+        potential_host_str = self.room.get_host_str()
+        if potential_host_str == "":
+            msg += f"Decide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+        else:
+            msg += f"{potential_host_str}\n\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
         room.teams = teams
 
