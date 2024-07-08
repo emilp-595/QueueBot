@@ -409,11 +409,6 @@ class JoinView(View):
             await interaction.followup.send(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
             return
-        if self.room.room_num == 1:
-            self.room.mmr_high = 999999
-        if self.room.room_num == self.bottom_room_num:
-            self.room.mmr_low = -999999
-        if isinstance(user_mmr, int) and self.room.mmr_high + 500 > user_mmr > self.room.mmr_low - 500:
         mmr_high = 999999 if self.room.room_num == 1 else self.room.mmr_high
         mmr_low = -999999 if self.room.room_num == self.bottom_room_num else self.room.mmr_low
         if isinstance(user_mmr, int) and mmr_high + 500 > user_mmr > mmr_low - 500:
