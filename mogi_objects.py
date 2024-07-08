@@ -193,6 +193,12 @@ class Room:
     def get_player_list(self):
         return [player.member.id for team in self.teams for player in team.players]
 
+    def create_host_list(self):
+        all_hosts = list(filter(lambda p: p.host, self.players))
+        random.shuffle(all_hosts)
+        self.host_list.clear()
+        self.host_list.extend(all_hosts)
+
 
 class Team:
     def __init__(self, players: List["Player"]):
