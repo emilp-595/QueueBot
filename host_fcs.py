@@ -4,7 +4,6 @@ from collections.abc import Iterable
 import aiohttp
 
 MKW_HOST_API_URL = f"https://mkwlounge.gg/api/hostfc.php?discord_guild_id={common.CONFIG['guild_id']}&discord_user_id="
-MKW_HOST_API_URL = f"https://mkwlounge.gg/api/hostfc.php?discord_guild_id=387347467332485122&discord_user_id="
 
 SESSION = None
 
