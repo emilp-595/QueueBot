@@ -238,6 +238,23 @@ class SquadQueue(commands.Cog):
             await ctx.send("Mogi is closed; players cannot join or drop from the event")
         return mogi.gathering
 
+    @app_commands.command(name="extend")
+    @app_commands.guild_only()
+    async def extend(self, interaction: discord.Interaction, minutes: int):
+        """Extend the queue
+
+        Parameters
+        -----------
+        minutes: int
+            The number of minutes to add to the extension time. Can be negative.
+        """
+        mogi = self.get_mogi(interaction)
+        if mogi is None or not mogi.started or not mogi.gathering:
+            await interaction.followup.send("Queue has not started yet.")
+            return
+        mogi.additional_extension += timedelta(minutes=minutes)
+        await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
+
     @app_commands.command(name="c")
     @app_commands.guild_only()
     async def can(self, interaction: discord.Interaction):
@@ -844,7 +861,8 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
                 if not mogi.is_automated or not mogi.started or mogi.making_rooms_run:
                     return
                 cur_time = datetime.now(timezone.utc)
-                if (mogi.start_time + self.EXTENSION_TIME) <= cur_time:
+                force_start_time = mogi.start_time + self.EXTENSION_TIME + mogi.additional_extension
+                if force_start_time <= cur_time:
                     mogi.gathering = False
                 elif mogi.start_time <= cur_time and mogi.gathering:
                     # check if there are an even amount of teams since we are past the queue time
@@ -853,8 +871,7 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
                         mogi.gathering = False
                     else:
                         if int(cur_time.second / 20) == 0:
-                            force_time = mogi.start_time + self.EXTENSION_TIME
-                            minutes_left = (force_time - cur_time).seconds // 60
+                            minutes_left = (force_start_time - cur_time).seconds // 60
                             x_teams = int(int(12 / mogi.max_player_per_team) - num_leftover_teams)
                             await mogi.mogi_channel.send(
                                 f"Need {x_teams} more player(s) to start immediately. Starting in {minutes_left + 1} minute(s) regardless.")
