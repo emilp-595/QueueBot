@@ -815,6 +815,7 @@ class SquadQueue(commands.Cog):
         regular_player_list = all_confirmed_players[:first_late_player_index]
         late_player_list = all_confirmed_players[first_late_player_index:]
         proposed_list = sorted(mogi.generate_proposed_list(allowed_players_check), reverse=True)
+        await mogi.populate_host_fcs()
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
             msg = f"`Room {room_number} - Player List`\n"
             for player_num, player in enumerate(room_players, 1):
@@ -825,6 +826,7 @@ class SquadQueue(commands.Cog):
             else:
                 curr_room = mogi.rooms[room_number - 1]
                 curr_room.teams = [Team([p]) for p in room_players]
+                curr_room.create_host_list()
                 player_mentions = " ".join([p.mention for p in room_players])
                 extra_member_mentions = " ".join([m.mention for m in extra_members if m is not None])
                 room_msg = f"""{msg}
