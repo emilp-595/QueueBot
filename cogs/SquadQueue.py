@@ -390,11 +390,11 @@ class SquadQueue(commands.Cog):
         if bottom_room_num == 1:
             msg += f"Room 1 is looking for a sub with any mmr\n"
         elif room.room_num == 1:
-            msg += f"Room 1 is looking for a sub with mmr >{room.mmr_low - 500}\n"
+            msg += f"Room 1 is looking for a sub with mmr >{room.mmr_low - 700}\n"
         elif room.room_num == bottom_room_num:
-            msg += f"Room {room.room_num} is looking for a sub with mmr <{room.mmr_high + 500}\n"
+            msg += f"Room {room.room_num} is looking for a sub with mmr <{room.mmr_high + 700}\n"
         else:
-            msg += f"Room {room.room_num} is looking for a sub with range {room.mmr_low - 500}-{room.mmr_high + 500}\n"
+            msg += f"Room {room.room_num} is looking for a sub with range {room.mmr_low - 700}-{room.mmr_high + 700}\n"
         message_delete_date = datetime.now(
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
