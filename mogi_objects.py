@@ -291,7 +291,7 @@ class VoteView(View):
     def __init__(self, players, thread, mogi: Mogi, room: Room, tier_info):
         super().__init__()
         self.players = players
-        self.thread = thread
+        self.thread:discord.Thread = thread
         self.mogi = mogi
         self.room = room
         self.header_text = ""
@@ -358,6 +358,9 @@ Winner: {format_[1]}
 
         self.found_winner = True
         await self.thread.send(msg)
+        if common.SERVER is common.Server.MKW:
+            new_thread_name = self.thread.name + f" - T{get_tier(room_mmr, self.tier_info)}"
+            await self.thread.edit(name=new_thread_name)
 
     async def find_winner(self):
         if not self.found_winner:
