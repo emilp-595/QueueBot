@@ -30,7 +30,7 @@ async def _get_mkw_hosts(discord_ids: Iterable[str]) -> Dict[str, str]:
                 print(f"hostfc endpoint returned unsuccessful results {results}")
                 return {}
             host_mapping = {}
-            for item in results["success"]:
+            for item in results["results"]:
                 host_mapping[item["discord_user_id"]] = item["fc"]
             return host_mapping
 

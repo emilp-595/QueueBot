@@ -7,6 +7,7 @@ import discord
 from datetime import datetime, timezone, timedelta
 from discord.ui import View
 from typing import List, Tuple, Callable
+import host_fcs
 
 
 
@@ -146,6 +147,14 @@ class Mogi:
             if room.thread.id == channel_id:
                 return room
         return None
+
+    async def populate_host_fcs(self):
+        all_hosts = {str(plr.member.id): plr for plr in filter(lambda p: p.host, self.players_on_confirmed_teams())}
+        hosts = await host_fcs.get_hosts(all_hosts)
+        for host_discord_id, host_fc in hosts.items():
+            player: Player = all_hosts.get(host_discord_id)
+            if player is not None:
+                player.host_fc = host_fc
 
 
 class Room:
