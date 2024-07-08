@@ -794,6 +794,9 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
                     curr_room.view = view
                     await curr_room.thread.send(view=view)
                 except discord.DiscordException:
+                    err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
+                    err_msg += player_mentions + extra_member_mentions
+                    msg += err_msg
                     print(traceback.format_exc())
 
             try:
