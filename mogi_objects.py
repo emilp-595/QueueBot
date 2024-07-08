@@ -210,9 +210,8 @@ class Room:
                 host_strs[0] = f"**{host_strs[0]}**"
         result = f"Host: {', '.join(host_strs)}"
         if common.SERVER is common.Server.MKW and self.host_list[0].host_fc is not None:
-            result += f"**Host ({self.host_list[0].member.display_name}) Friend Code: {self.host_list[0].host_fc}**"
+            result += f"\n**Host ({self.host_list[0].member.display_name}) Friend Code: {self.host_list[0].host_fc}**"
         return result
-
 
 
 class Team:
