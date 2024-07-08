@@ -832,7 +832,7 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
 {player_mentions} {extra_member_mentions}"""
                 try:
                     await curr_room.thread.send(room_msg)
-                    view = VoteView(room_players, curr_room.thread, mogi, self.TIER_INFO)
+                    view = VoteView(room_players, curr_room.thread, mogi, curr_room, self.TIER_INFO)
                     curr_room.view = view
                     await curr_room.thread.send(view=view)
                 except discord.DiscordException:

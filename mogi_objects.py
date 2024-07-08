@@ -288,11 +288,12 @@ class Player:
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi: Mogi, tier_info):
+    def __init__(self, players, thread, mogi: Mogi, room: Room, tier_info):
         super().__init__()
         self.players = players
         self.thread = thread
         self.mogi = mogi
+        self.room = room
         self.header_text = ""
         self.teams_text = ""
         self.found_winner = False
