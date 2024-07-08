@@ -165,6 +165,7 @@ class Room:
         self.view = None
         self.finished = False
         self.host_list: List["Player"] = []
+        self.subs: List["Player"] = []
 
     @property
     def mmr_high(self) -> int:
@@ -436,7 +437,7 @@ class JoinView(View):
             await interaction.followup.send(
                 "Players with the muted or restricted role cannot use the sub button.", ephemeral=True)
             return
-        if interaction.user.id in self.room.get_player_list():
+        if interaction.user.id in self.room.get_player_list() + self.room.subs:
             await interaction.followup.send(
                 "You are already in this room.", ephemeral=True)
             return
@@ -446,11 +447,15 @@ class JoinView(View):
             await interaction.followup.send(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
             return
-        if self.room.room_num == 1:
-            self.room.mmr_high = 999999
-        if self.room.room_num == self.bottom_room_num:
-            self.room.mmr_low = -999999
-        if isinstance(user_mmr, int) and self.room.mmr_high + 500 > user_mmr > self.room.mmr_low - 500:
+        # Need a 2nd check to control the race condition introduced by "await self.get_mmr"
+        if interaction.user.id in self.room.get_player_list() + self.room.subs:
+            await interaction.followup.send(
+                "You are already in this room.", ephemeral=True)
+            return
+        mmr_high = 999999 if self.room.room_num == 1 else self.room.mmr_high
+        mmr_low = -999999 if self.room.room_num == self.bottom_room_num else self.room.mmr_low
+        if isinstance(user_mmr, int) and mmr_high + 500 > user_mmr > mmr_low - 500:
+            self.room.subs.append(interaction.user.id)
             button.disabled = True
             await interaction.followup.edit_message(interaction.message.id, view=self)
             mention = interaction.user.mention
