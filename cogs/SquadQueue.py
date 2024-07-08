@@ -255,10 +255,19 @@ class SquadQueue(commands.Cog):
         mogi.additional_extension += timedelta(minutes=minutes)
         await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
 
+    @app_commands.command(name="ch")
+    @app_commands.guild_only()
+    async def can_host(self, interaction: discord.Interaction):
+        """Join a mogi as a host"""
+        await self.join_queue(interaction, host=True)
+
     @app_commands.command(name="c")
     @app_commands.guild_only()
     async def can(self, interaction: discord.Interaction):
         """Join a mogi"""
+        await self.join_queue(interaction)
+
+    async def join_queue(self, interaction: discord.Interaction, host=False):
         await interaction.response.defer()
         async with self.LOCK:
             member = interaction.user
@@ -268,9 +277,24 @@ class SquadQueue(commands.Cog):
                 return
 
             player_team = mogi.check_player(member)
+            player = None if player_team is None else player_team.get_player(member)
 
-            if player_team is not None:
-                await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+            if player is not None:
+                # The player is already signed up, but they might be changing to a host or non-host. Begin checks:
+                # The player was queued as host, and they queued again as a host
+                if player.host and host:
+                    await interaction.followup.send(f"{interaction.user.mention} is already signed up as a host.")
+                # The player was queued as host, and they queued again as a non-host
+                elif player.host and not host:
+                    await interaction.followup.send(f"{interaction.user.mention} has changed to a non-host.")
+                # The player was not queued as host, but they are changing to a host
+                elif not player.host and host:
+                    await interaction.followup.send(f"{interaction.user.mention} has changed to a host.")
+                # The player was not queued as host and did not change to a host
+                elif not player.host and not host:
+                    await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+
+                player.host = host
                 return
 
             msg = ""
@@ -290,10 +314,11 @@ class SquadQueue(commands.Cog):
                 return
 
             players[0].confirmed = True
+            players[0].host = host
             squad = Team(players)
             mogi.teams.append(squad)
-
-            msg += f"{players[0].lounge_name} joined queue closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
+            host_str = " as a host " if host else " "
+            msg += f"{players[0].lounge_name} joined queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
 
             await interaction.followup.send(msg)
             await self.check_room_channels(mogi)
