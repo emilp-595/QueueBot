@@ -164,6 +164,7 @@ class Room:
         self.thread = thread
         self.view = None
         self.finished = False
+        self.host_list: List["Player"] = []
 
     @property
     def mmr_high(self) -> int:
