@@ -252,7 +252,7 @@ class SquadQueue(commands.Cog):
         if mogi is None or not mogi.started or not mogi.gathering:
             await interaction.followup.send("Queue has not started yet.")
             return
-        mogi.additional_extension_minutes += minutes
+        mogi.additional_extension_minutes += timedelta(minutes=minutes)
         await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
 
     @app_commands.command(name="c")

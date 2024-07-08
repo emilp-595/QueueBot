@@ -34,7 +34,7 @@ class Mogi:
         self.rooms: List[Room] = []
         self.is_automated = is_automated
         self.start_time = start_time if is_automated else None
-        self.additional_extension_minutes = additional_extension_minutes
+        self.additional_extension = timedelta(minutes=additional_extension_minutes)
 
     @property
     def num_players(self):
