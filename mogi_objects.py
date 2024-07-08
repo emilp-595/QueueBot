@@ -199,6 +199,21 @@ class Room:
         self.host_list.clear()
         self.host_list.extend(all_hosts)
 
+    def get_host_str(self) -> str:
+        if len(self.host_list) == 0:
+            return ""
+        host_strs = []
+        for i, player in enumerate(self.host_list, 1):
+            host_strs.append(f"{i}. {player.member.display_name}")
+            # First player on the list should be bold
+            if i == 1:
+                host_strs[0] = f"**{host_strs[0]}**"
+        result = f"Host: {', '.join(host_strs)}"
+        if common.SERVER is common.Server.MKW and self.host_list[0].host_fc is not None:
+            result += f"**Host ({self.host_list[0].member.display_name}) Friend Code: {self.host_list[0].host_fc}**"
+        return result
+
+
 
 class Team:
     def __init__(self, players: List["Player"]):
