@@ -349,7 +349,7 @@ Winner: {format_[1]}
         room_open_time = self.mogi.making_rooms_run_time
         potential_host_str = self.room.get_host_str()
         if potential_host_str == "":
-            msg += f"Decide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+            msg += f"\nDecide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
         else:
             msg += f"{potential_host_str}\n\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
