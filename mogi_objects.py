@@ -233,12 +233,14 @@ class Team:
 
 
 class Player:
-    def __init__(self, member: discord.Member, lounge_name: str, mmr: int, confirmed=False):
+    def __init__(self, member: discord.Member, lounge_name: str, mmr: int, confirmed=False, host=False):
         self.member = member
         self.lounge_name = lounge_name
         self.mmr = mmr
         self.confirmed = confirmed
         self.score = 0
+        self.host = host
+        self.host_fc = None
 
     @property
     def mention(self):
