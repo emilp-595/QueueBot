@@ -252,7 +252,7 @@ class SquadQueue(commands.Cog):
         if mogi is None or not mogi.started or not mogi.gathering:
             await interaction.followup.send("Queue has not started yet.")
             return
-        mogi.additional_extension_minutes += timedelta(minutes=minutes)
+        mogi.additional_extension += timedelta(minutes=minutes)
         await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
 
     @app_commands.command(name="c")
@@ -861,7 +861,7 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
                 if not mogi.is_automated or not mogi.started or mogi.making_rooms_run:
                     return
                 cur_time = datetime.now(timezone.utc)
-                force_start_time = mogi.start_time + self.EXTENSION_TIME + mogi.additional_extension_minutes
+                force_start_time = mogi.start_time + self.EXTENSION_TIME + mogi.additional_extension
                 if force_start_time <= cur_time:
                     mogi.gathering = False
                 elif mogi.start_time <= cur_time and mogi.gathering:
