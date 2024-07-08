@@ -7,6 +7,7 @@ import discord
 from datetime import datetime, timezone, timedelta
 from discord.ui import View
 from typing import List, Tuple, Callable
+import host_fcs
 
 
 
@@ -147,6 +148,14 @@ class Mogi:
                 return room
         return None
 
+    async def populate_host_fcs(self):
+        all_hosts = {str(plr.member.id): plr for plr in filter(lambda p: p.host, self.players_on_confirmed_teams())}
+        hosts = await host_fcs.get_hosts(all_hosts)
+        for host_discord_id, host_fc in hosts.items():
+            player: Player = all_hosts.get(host_discord_id)
+            if player is not None:
+                player.host_fc = host_fc
+
 
 class Room:
     def __init__(self, teams, room_num: int, thread: discord.Thread):
@@ -155,6 +164,7 @@ class Room:
         self.thread = thread
         self.view = None
         self.finished = False
+        self.host_list: List["Player"] = []
         self.subs: List["Player"] = []
 
     @property
@@ -183,6 +193,26 @@ class Room:
 
     def get_player_list(self):
         return [player.member.id for team in self.teams for player in team.players]
+
+    def create_host_list(self):
+        all_hosts = list(filter(lambda p: p.host, self.players))
+        random.shuffle(all_hosts)
+        self.host_list.clear()
+        self.host_list.extend(all_hosts)
+
+    def get_host_str(self) -> str:
+        if len(self.host_list) == 0:
+            return ""
+        host_strs = []
+        for i, player in enumerate(self.host_list, 1):
+            host_strs.append(f"{i}. {player.member.display_name}")
+            # First player on the list should be bold
+            if i == 1:
+                host_strs[0] = f"**{host_strs[0]}**"
+        result = f"Host: {', '.join(host_strs)}"
+        if common.SERVER is common.Server.MKW and self.host_list[0].host_fc is not None:
+            result += f"\n**Host ({self.host_list[0].member.display_name}) Friend Code: {self.host_list[0].host_fc}**"
+        return result
 
 
 class Team:
@@ -234,12 +264,14 @@ class Team:
 
 
 class Player:
-    def __init__(self, member: discord.Member, lounge_name: str, mmr: int, confirmed=False):
+    def __init__(self, member: discord.Member, lounge_name: str, mmr: int, confirmed=False, host=False):
         self.member = member
         self.lounge_name = lounge_name
         self.mmr = mmr
         self.confirmed = confirmed
         self.score = 0
+        self.host = host
+        self.host_fc = None
 
     @property
     def mention(self):
@@ -256,11 +288,12 @@ class Player:
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi: Mogi, tier_info):
+    def __init__(self, players, thread, mogi: Mogi, room: Room, tier_info):
         super().__init__()
         self.players = players
         self.thread = thread
         self.mogi = mogi
+        self.room = room
         self.header_text = ""
         self.teams_text = ""
         self.found_winner = False
@@ -315,7 +348,11 @@ Winner: {format_[1]}
 
         penalty_time = self.mogi.making_rooms_run_time + timedelta(minutes=8)
         room_open_time = self.mogi.making_rooms_run_time
-        msg += f"Decide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+        potential_host_str = self.room.get_host_str()
+        if potential_host_str == "":
+            msg += f"\nDecide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+        else:
+            msg += f"{potential_host_str}\n\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
         room.teams = teams
 

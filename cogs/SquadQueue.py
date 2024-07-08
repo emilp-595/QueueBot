@@ -255,10 +255,19 @@ class SquadQueue(commands.Cog):
         mogi.additional_extension += timedelta(minutes=minutes)
         await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
 
+    @app_commands.command(name="ch")
+    @app_commands.guild_only()
+    async def can_host(self, interaction: discord.Interaction):
+        """Join a mogi as a host"""
+        await self.join_queue(interaction, host=True)
+
     @app_commands.command(name="c")
     @app_commands.guild_only()
     async def can(self, interaction: discord.Interaction):
         """Join a mogi"""
+        await self.join_queue(interaction)
+
+    async def join_queue(self, interaction: discord.Interaction, host=False):
         await interaction.response.defer()
         async with self.LOCK:
             member = interaction.user
@@ -268,9 +277,24 @@ class SquadQueue(commands.Cog):
                 return
 
             player_team = mogi.check_player(member)
+            player = None if player_team is None else player_team.get_player(member)
 
-            if player_team is not None:
-                await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+            if player is not None:
+                # The player is already signed up, but they might be changing to a host or non-host. Begin checks:
+                # The player was queued as host, and they queued again as a host
+                if player.host and host:
+                    await interaction.followup.send(f"{interaction.user.mention} is already signed up as a host.")
+                # The player was queued as host, and they queued again as a non-host
+                elif player.host and not host:
+                    await interaction.followup.send(f"{interaction.user.mention} has changed to a non-host.")
+                # The player was not queued as host, but they are changing to a host
+                elif not player.host and host:
+                    await interaction.followup.send(f"{interaction.user.mention} has changed to a host.")
+                # The player was not queued as host and did not change to a host
+                elif not player.host and not host:
+                    await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
+
+                player.host = host
                 return
 
             msg = ""
@@ -290,10 +314,11 @@ class SquadQueue(commands.Cog):
                 return
 
             players[0].confirmed = True
+            players[0].host = host
             squad = Team(players)
             mogi.teams.append(squad)
-
-            msg += f"{players[0].lounge_name} joined queue closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
+            host_str = " as a host " if host else " "
+            msg += f"{players[0].lounge_name} joined queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
 
             await interaction.followup.send(msg)
             await self.check_room_channels(mogi)
@@ -790,6 +815,7 @@ class SquadQueue(commands.Cog):
         regular_player_list = all_confirmed_players[:first_late_player_index]
         late_player_list = all_confirmed_players[first_late_player_index:]
         proposed_list = sorted(mogi.generate_proposed_list(allowed_players_check), reverse=True)
+        await mogi.populate_host_fcs()
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
             msg = f"`Room {room_number} - Player List`\n"
             for player_num, player in enumerate(room_players, 1):
@@ -800,6 +826,7 @@ class SquadQueue(commands.Cog):
             else:
                 curr_room = mogi.rooms[room_number - 1]
                 curr_room.teams = [Team([p]) for p in room_players]
+                curr_room.create_host_list()
                 player_mentions = " ".join([p.mention for p in room_players])
                 extra_member_mentions = " ".join([m.mention for m in extra_members if m is not None])
                 room_msg = f"""{msg}
@@ -807,7 +834,7 @@ Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
 {player_mentions} {extra_member_mentions}"""
                 try:
                     await curr_room.thread.send(room_msg)
-                    view = VoteView(room_players, curr_room.thread, mogi, self.TIER_INFO)
+                    view = VoteView(room_players, curr_room.thread, mogi, curr_room, self.TIER_INFO)
                     curr_room.view = view
                     await curr_room.thread.send(view=view)
                 except discord.DiscordException:
