@@ -248,6 +248,11 @@ class SquadQueue(commands.Cog):
         minutes: int
             The number of minutes to add to the extension time. Can be negative.
         """
+        mogi = self.get_mogi(interaction)
+        if mogi is None or not mogi.started or not mogi.gathering:
+            await interaction.followup.send("Queue has not started yet.")
+            return
+        mogi.additional_extension_minutes += minutes
         await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
 
     @app_commands.command(name="c")
