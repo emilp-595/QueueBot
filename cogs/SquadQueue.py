@@ -238,6 +238,18 @@ class SquadQueue(commands.Cog):
             await ctx.send("Mogi is closed; players cannot join or drop from the event")
         return mogi.gathering
 
+    @app_commands.command(name="extend")
+    @app_commands.guild_only()
+    async def extend(self, interaction: discord.Interaction, minutes: int):
+        """Extend the queue
+
+        Parameters
+        -----------
+        minutes: int
+            The number of minutes to add to the extension time. Can be negative.
+        """
+        await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
+
     @app_commands.command(name="c")
     @app_commands.guild_only()
     async def can(self, interaction: discord.Interaction):
