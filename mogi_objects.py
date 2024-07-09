@@ -1,27 +1,124 @@
 from __future__ import annotations
 
+import common
+from common import flatten
 import random
 import discord
 from datetime import datetime, timezone, timedelta
-import time
 from discord.ui import View
-from typing import List, Callable
+from typing import List, Tuple, Callable
+import host_fcs
+
+
+
+def average(list_: List[int | float]) -> float:
+    return sum(list_) / len(list_)
 
 
 class Mogi:
-    def __init__(self, sq_id: int, size: int, mogi_channel: discord.TextChannel,
-                 is_automated=False, start_time=None):
+    ALGORITHM_STATUS_INSUFFICIENT_PLAYERS = 1
+    ALGORITHM_STATUS_2_OR_MORE_ROOMS = 2
+    ALGORITHM_STATUS_SUCCESS_FOUND = 3
+    ALGORITHM_STATUS_SUCCESS_EMPTY = 4
+
+    def __init__(self, sq_id: int, max_players_per_team: int, players_per_room: int, mogi_channel: discord.TextChannel,
+                 is_automated=False, start_time=None, additional_extension_minutes=0):
         self.started = False
         self.gathering = False
         self.making_rooms_run = False
         self.making_rooms_run_time = None
         self.sq_id = sq_id
-        self.size = size
+        self.max_player_per_team = max_players_per_team
+        self.players_per_room = players_per_room
         self.mogi_channel = mogi_channel
         self.teams: List[Team] = []
         self.rooms: List[Room] = []
         self.is_automated = is_automated
         self.start_time = start_time if is_automated else None
+        self.additional_extension = timedelta(minutes=additional_extension_minutes)
+
+    @property
+    def num_players(self):
+        """Returns the total number of players in teams where all players have confirmed"""
+        return sum(len(t.players) for t in self.teams if t.all_registered())
+
+    @property
+    def num_teams(self):
+        """Returns the total number of teams where all players have confirmed"""
+        return self.count_registered()
+
+    @property
+    def max_possible_rooms(self) -> int:
+        """Returns the maximum possible number of rooms based on teams where all players have confirmed. Depending on range cutoffs or
+        the specifics of the algorithm used to make the actual rooms, this number could be higher than the final number of rooms."""
+        return self.num_players // self.players_per_room
+
+    @staticmethod
+    def _minimize_range(players: List[Player], num_players: int) -> List[Player] | None:
+        """Returns a collection of players (the number of players in the collection is the given num_players parameter) whose has the smallest
+        mmr spread. If the number of players in the given list is smaller than the request num_players collection size, or the num_players is less than 2 (doesn't make sense), None is returned."""
+        # The number of players we were given is less than the collection size we are supposed to return, so return None
+        if len(players) < num_players:
+            return None
+        if num_players <= 1:
+            return None
+        # Sort the players so we easily know the player with the lowest rating and highest rating in any given collection
+        sorted_players = sorted(players)
+        # In the beginning, the best found collection of players is the first 12
+        best_collection = sorted_players[0:num_players]
+        cur_min = best_collection[-1].mmr - best_collection[0].mmr
+        # Find the collection of players with the least rating spread
+        for lowest_player_index, highest_player in enumerate(sorted_players[num_players:], 1):
+            lowest_player = sorted_players[lowest_player_index]
+            cur_range = highest_player.mmr - lowest_player.mmr
+            if cur_range < cur_min:
+                cur_min = cur_range
+                best_collection = sorted_players[lowest_player_index:lowest_player_index + num_players]
+        return best_collection
+
+    def _one_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[Player], int]:
+        if self.max_possible_rooms == 0:
+            return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
+        if self.max_possible_rooms > 1:
+            confirmed_players = self.players_on_confirmed_teams()
+            return confirmed_players[0:self.players_per_room * self.max_possible_rooms], Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS
+        # At this point, we can only make one possible room, so our algorithm will be used
+        confirmed_players = self.players_on_confirmed_teams()
+        cur_check_list = list(confirmed_players[0:self.players_per_room])
+        late_players = list(confirmed_players[self.players_per_room:])
+
+        while True:
+            best_collection = Mogi._minimize_range(cur_check_list, self.players_per_room)
+            if valid_players_check(best_collection):
+                return best_collection, Mogi.ALGORITHM_STATUS_SUCCESS_FOUND
+            if len(late_players) == 0:
+                break
+            cur_check_list.append(late_players.pop(0))
+        # Even after checking the late players, we did not find
+        return [], Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY
+
+    def _mk8dx_generate_final_list(self) -> List[Player]:
+        confirmed_players = self.players_on_confirmed_teams()
+        return confirmed_players[0:self.players_per_room * self.max_possible_rooms]
+
+    def _mkw_generate_final_list(self, valid_players_check: Callable[[List[Player]], bool]) -> List[Player]:
+        result, _ = self._one_room_final_list_algorithm(valid_players_check)
+        return result
+
+    def generate_proposed_list(self, valid_players_check: Callable[[List[Player]], bool] = None) -> List[Player]:
+        """Algorithm that generates a proposed list of players that will play. This algorithm may differ between
+        MK8DX and MKW. The algorithm is allowed to propose any list of players it wants to. Among several possibilities,
+        this allows the algorithm to change the order of the players in the returned list, add or remove players,
+        and more.
+
+        The algorithm may or may not enforce a hard check of the valid players. That is up to the implemented
+        algorithm."""
+        if common.SERVER is common.Server.MK8DX:
+            return self._mk8dx_generate_final_list()
+        elif common.SERVER is common.Server.MKW:
+            return self._mkw_generate_final_list(valid_players_check)
+        else:
+            raise ValueError(f"Unknown server in config: {common.Server}")
 
     def check_player(self, member):
         for team in self.teams:
@@ -29,20 +126,15 @@ class Mogi:
                 return team
         return None
 
-    def count_registered(self):
+    def count_registered(self) -> int:
         """Returns the number of teams that are registered"""
-        return sum(1 for team in self.teams if team.is_registered())
+        return sum(1 for team in self.teams if team.all_registered())
 
-    def confirmed_list(self):
-        return [team for team in self.teams if team.is_registered()]
+    def confirmed_teams(self) -> List["Team"]:
+        return [team for team in self.teams if team.all_registered()]
 
-    def remove_id(self, squad_id: int):
-        confirmed = self.confirmed_list()
-        if squad_id < 1 or squad_id > len(confirmed):
-            return None
-        squad = confirmed[squad_id - 1]
-        self.teams.remove(squad)
-        return squad
+    def players_on_confirmed_teams(self) -> List[Player]:
+        return flatten([team.players for team in self.confirmed_teams()])
 
     def is_room_thread(self, channel_id: int):
         for room in self.rooms:
@@ -56,52 +148,97 @@ class Mogi:
                 return room
         return None
 
+    async def populate_host_fcs(self):
+        all_hosts = {str(plr.member.id): plr for plr in filter(lambda p: p.host, self.players_on_confirmed_teams())}
+        hosts = await host_fcs.get_hosts(all_hosts)
+        for host_discord_id, host_fc in hosts.items():
+            player: Player = all_hosts.get(host_discord_id)
+            if player is not None:
+                player.host_fc = host_fc
+
 
 class Room:
     def __init__(self, teams, room_num: int, thread: discord.Thread):
-        self.teams = teams
+        self.teams: List["Team"] = teams
         self.room_num = room_num
         self.thread = thread
-        self.mmr_average = 0
-        self.mmr_high = None
-        self.mmr_low = None
         self.view = None
         self.finished = False
+        self.host_list: List["Player"] = []
+        self.subs: List["Player"] = []
+
+    @property
+    def mmr_high(self) -> int:
+        if self.teams is None:
+            return None
+        return max(self.players).mmr
+
+    @property
+    def mmr_low(self) -> int:
+        if self.teams is None:
+            return None
+        return min(self.players).mmr
+
+    @property
+    def avg_mmr(self) -> float:
+        if self.teams is None:
+            return 0
+        return average([p.mmr for p in self.players])
+
+    @property
+    def players(self) -> List[Player]:
+        if self.teams is None:
+            return []
+        return flatten([t.players for t in self.teams])
 
     def get_player_list(self):
         return [player.member.id for team in self.teams for player in team.players]
 
+    def create_host_list(self):
+        all_hosts = list(filter(lambda p: p.host, self.players))
+        random.shuffle(all_hosts)
+        self.host_list.clear()
+        self.host_list.extend(all_hosts)
+
+    def get_host_str(self) -> str:
+        if len(self.host_list) == 0:
+            return ""
+        host_strs = []
+        for i, player in enumerate(self.host_list, 1):
+            host_strs.append(f"{i}. {player.member.display_name}")
+            # First player on the list should be bold
+            if i == 1:
+                host_strs[0] = f"**{host_strs[0]}**"
+        result = f"Host: {', '.join(host_strs)}"
+        if common.SERVER is common.Server.MKW and self.host_list[0].host_fc is not None:
+            result += f"\n**Host ({self.host_list[0].member.display_name}) Friend Code: {self.host_list[0].host_fc}**"
+        return result
+
 
 class Team:
-    def __init__(self, players):
+    def __init__(self, players: List["Player"]):
         self.players = players
-        self.avg_mmr = sum([p.mmr for p in self.players]) / len(self.players)
 
-    def recalc_avg(self):
-        self.avg_mmr = sum([p.mmr for p in self.players]) / len(self.players)
+    def get_mentions(self):
+        """Return a string where all players on the team are discord @'d"""
+        return " ".join([p.member.mention for p in self.players])
 
-    def is_registered(self):
+    @property
+    def avg_mmr(self):
+        return average([p.mmr for p in self.players])
+
+    def all_registered(self):
         """Returns if all players on the team are registered"""
         return all(player.confirmed for player in self.players)
 
     def has_player(self, member):
         return any(player.member.id == member.id for player in self.players)
 
-    def get_player(self, member):
+    def get_player(self, member: discord.Member) -> Player | None:
         for player in self.players:
             if player.member.id == member.id:
                 return player
         return None
-
-    def get_first_player(self):
-        return self.players[0]
-
-    def sub_player(self, sub_out, sub_in):
-        for i, player in enumerate(self.players):
-            if player == sub_out:
-                self.players[i] = sub_in
-                self.recalc_avg()
-                return
 
     def num_confirmed(self):
         """Returns the number of confirmed players in the team"""
@@ -127,20 +264,36 @@ class Team:
 
 
 class Player:
-    def __init__(self, member, lounge_name, mmr):
+    def __init__(self, member: discord.Member, lounge_name: str, mmr: int, confirmed=False, host=False):
         self.member = member
         self.lounge_name = lounge_name
         self.mmr = mmr
-        self.confirmed = False
+        self.confirmed = confirmed
         self.score = 0
+        self.host = host
+        self.host_fc = None
+
+    @property
+    def mention(self):
+        """String that, when sent in a Discord message, will mention and ping the player."""
+        if self.member is None:
+            return "<@!1>"
+        return self.member.mention
+
+    def __repr__(self):
+        return f"{__class__.__name__}(member={self.member}, lounge_name={self.lounge_name}, mmr={self.mmr}, confirmed={self.confirmed})"
+
+    def __lt__(self, other: Player):
+        return self.mmr < other.mmr
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi: Mogi, tier_info):
+    def __init__(self, players, thread, mogi: Mogi, room: Room, tier_info):
         super().__init__()
         self.players = players
-        self.thread = thread
+        self.thread:discord.Thread = thread
         self.mogi = mogi
+        self.room = room
         self.header_text = ""
         self.teams_text = ""
         self.found_winner = False
@@ -195,12 +348,19 @@ Winner: {format_[1]}
 
         penalty_time = self.mogi.making_rooms_run_time + timedelta(minutes=8)
         room_open_time = self.mogi.making_rooms_run_time
-        msg += f"Decide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+        potential_host_str = self.room.get_host_str()
+        if potential_host_str == "":
+            msg += f"\nDecide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+        else:
+            msg += f"{potential_host_str}\n\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
         room.teams = teams
 
         self.found_winner = True
         await self.thread.send(msg)
+        if common.SERVER is common.Server.MKW:
+            new_thread_name = self.thread.name + f" - T{get_tier(room_mmr, self.tier_info)}"
+            await self.thread.edit(name=new_thread_name)
 
     async def find_winner(self):
         if not self.found_winner:
@@ -280,7 +440,7 @@ class JoinView(View):
             await interaction.followup.send(
                 "Players with the muted or restricted role cannot use the sub button.", ephemeral=True)
             return
-        if interaction.user.id in self.room.get_player_list():
+        if interaction.user.id in self.room.get_player_list() + self.room.subs:
             await interaction.followup.send(
                 "You are already in this room.", ephemeral=True)
             return
@@ -290,11 +450,15 @@ class JoinView(View):
             await interaction.followup.send(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
             return
-        if self.room.room_num == 1:
-            self.room.mmr_high = 999999
-        if self.room.room_num == self.bottom_room_num:
-            self.room.mmr_low = -999999
-        if isinstance(user_mmr, int) and user_mmr < self.room.mmr_high + 500 and user_mmr > self.room.mmr_low - 500:
+        # Need a 2nd check to control the race condition introduced by "await self.get_mmr"
+        if interaction.user.id in self.room.get_player_list() + self.room.subs:
+            await interaction.followup.send(
+                "You are already in this room.", ephemeral=True)
+            return
+        mmr_high = 999999 if self.room.room_num == 1 else self.room.mmr_high
+        mmr_low = -999999 if self.room.room_num == self.bottom_room_num else self.room.mmr_low
+        if isinstance(user_mmr, int) and mmr_high + 700 > user_mmr > mmr_low - 700:
+            self.room.subs.append(interaction.user.id)
             button.disabled = True
             await interaction.followup.edit_message(interaction.message.id, view=self)
             mention = interaction.user.mention

@@ -1,3 +1,4 @@
+import common
 import discord
 from discord.ext import commands
 import json
@@ -10,9 +11,7 @@ bot = commands.Bot(command_prefix=['!', '^'],
                    case_insensitive=True, intents=intents, help_command=None)
 
 initial_extensions = ['cogs.SquadQueue']
-
-with open('./config.json', 'r') as cjson:
-    bot.config = json.load(cjson)
+bot.config = common.CONFIG
 
 
 @bot.event
