@@ -120,7 +120,7 @@ class SquadQueue(commands.Cog):
 
         # This is the first event of the day's time. However, this isn't the first event the bot will run. This is literally the time of the first event in a daily schedule.
         self.FIRST_EVENT_TIME = datetime.combine(datetime.utcnow().date(), datetime.min.time(),
-                                                 tzinfo=timezone.utc) - timedelta(hours=1) + timedelta(
+                                                 tzinfo=timezone.utc) + timedelta(
             minutes=bot.config["FIRST_EVENT_TIME"])
 
         with open('./timezones.json', 'r') as cjson:
