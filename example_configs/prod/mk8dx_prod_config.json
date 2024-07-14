@@ -1,0 +1,46 @@
+{
+    "token": "",
+    "is_production": true,
+    "lounge": "MK8DX",
+    "lounge_description": "Valid options are MKW or MK8DX",
+    "guild_id": 445404006177570829,
+    "queue_join_channel": 1186158671525318719,
+    "queue_sub_channel": 1186158767029620766,
+	"queue_list_channel": 1221665101904478340,
+	"queue_history_channel": 1194440106266865684,
+    "queue_general_channel": 1186158671525318719,
+    "admin_roles": [
+        464610815299944448,
+        910528103225389107
+    ],
+    "helper_staff_roles": [
+        910528103225389107
+    ],
+    "members_for_channels": [
+        934740707934081035, 
+        743532508343304242, 
+        735910635082219570
+    ],
+    "roles_for_channels": [],
+    "PLACEMENT_PLAYER_MMR": 1500,
+    "placement_role_id": 730980761322389504,
+    "frequently_tagged_role_id": 682445864400453739,
+    "restricted_role_id": 600495108999086090,
+    "muted_role_id": 600495108999086090,
+    "queue_messages": true,
+    "sec_between_queue_msgs": 2,
+    "username": "username",
+    "password": "password",
+    "url": "https://www.mk8dx-lounge.com",
+    "track_type": "rt",
+    "FIRST_EVENT_TIME": 0,
+    "FIRST_EVENT_TIME_DESCRIPTION": "First event time is the number of minutes from 0:00 UTC that the bot would run the first event of the day. As an example, if this were set to 5, and the QUEUE_OPEN_TIME were set to 70, and the bot were to reboot at 2:00 UTC, the next event would immediately start and create rooms at 2:25 UTC.",
+    "QUEUE_OPEN_TIME": 60,
+    "JOINING_TIME": 55,
+    "EXTENSION_TIME": 3,
+    "ROOM_JOIN_PENALTY_TIME": 5,
+    "MOGI_LIFETIME": 180,
+    "SUB_RANGE_MMR_ALLOWANCE": 500, 
+    "SUB_MESSAGE_LIFETIME_SECONDS": 1200,
+    "ROOM_MMR_THRESHOLD": 9999999
+}

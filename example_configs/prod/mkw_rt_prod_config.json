@@ -1,51 +1,41 @@
 {
     "token": "",
+    "is_production": true,
     "lounge": "MKW",
     "lounge_description": "Valid options are MKW or MK8DX",
     "guild_id": 387347467332485122,
-    "admin_roles": {
-        "387347467332485122": [
-            "Administrator",
-            "Lounge Staff"
-        ]
-    },
     "queue_join_channel": 1215174119767932979,
     "queue_sub_channel": 1215174160234315806,
     "queue_list_channel": 1215174057453162496,
     "queue_history_channel": 1225709377747685477,
     "queue_general_channel": 1241842559429513361,
-    "members_for_channels": {
-        "387347467332485122": [
-            235148962103951360,
-            155149108183695360,
-            815483289515196416,
-            892420397570592768,
-            775415990238314518,
-            774812906830299136,
-            745443073202323586,
-            774866940950872095,
-            1019051989734273054
-        ]
-    },
-    "roles_for_channels": {
-        "387347467332485122": [
-            393600567781621761,
-            389252697284542465
-        ]
-    },
-    "staff_roles": [
-            387347888935534593,
-            399382503825211393,
-            399384750923579392,
-            521149807994208295,
-            792891432301625364,
-            877629421811540016
+    "admin_roles": [
+        387347888935534593,
+        877629421811540016
     ],
     "helper_staff_roles": [
         389252697284542465,
         399384750923579392,
         399382503825211393
     ],
+    "members_for_channels": [
+        235148962103951360,
+        155149108183695360,
+        815483289515196416,
+        892420397570592768,
+        775415990238314518,
+        774812906830299136,
+        745443073202323586,
+        774866940950872095,
+        1019051989734273054
+    ],
+    "roles_for_channels": [
+        393600567781621761,
+        389252697284542465
+    ],
+    "PLACEMENT_PLAYER_MMR": 750,
+    "placement_role_id": 723753340063842345,
+    "frequently_tagged_role_id": 1167985222533533817,
     "restricted_role_id": 797208908153618452,
     "muted_role_id": 434887701662007296,
     "queue_messages": true,
@@ -59,7 +49,9 @@
     "QUEUE_OPEN_TIME": 72,
     "JOINING_TIME": 67,
     "EXTENSION_TIME": 5,
+    "ROOM_JOIN_PENALTY_TIME": 8,
     "MOGI_LIFETIME": 180,
+    "SUB_RANGE_MMR_ALLOWANCE": 700, 
     "SUB_MESSAGE_LIFETIME_SECONDS": 1200,
-    "ROOM_MMR_THRESHOLD": 9000
+    "ROOM_MMR_THRESHOLD": 8000
 }

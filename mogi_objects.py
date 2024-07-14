@@ -10,7 +10,6 @@ from typing import List, Tuple, Callable
 import host_fcs
 
 
-
 def average(list_: List[int | float]) -> float:
     return sum(list_) / len(list_)
 
@@ -35,7 +34,8 @@ class Mogi:
         self.rooms: List[Room] = []
         self.is_automated = is_automated
         self.start_time = start_time if is_automated else None
-        self.additional_extension = timedelta(minutes=additional_extension_minutes)
+        self.additional_extension = timedelta(
+            minutes=additional_extension_minutes)
 
     @property
     def num_players(self):
@@ -73,7 +73,8 @@ class Mogi:
             cur_range = highest_player.mmr - lowest_player.mmr
             if cur_range < cur_min:
                 cur_min = cur_range
-                best_collection = sorted_players[lowest_player_index:lowest_player_index + num_players]
+                best_collection = sorted_players[lowest_player_index:
+                                                 lowest_player_index + num_players]
         return best_collection
 
     def _one_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[Player], int]:
@@ -88,7 +89,8 @@ class Mogi:
         late_players = list(confirmed_players[self.players_per_room:])
 
         while True:
-            best_collection = Mogi._minimize_range(cur_check_list, self.players_per_room)
+            best_collection = Mogi._minimize_range(
+                cur_check_list, self.players_per_room)
             if valid_players_check(best_collection):
                 return best_collection, Mogi.ALGORITHM_STATUS_SUCCESS_FOUND
             if len(late_players) == 0:
@@ -149,7 +151,8 @@ class Mogi:
         return None
 
     async def populate_host_fcs(self):
-        all_hosts = {str(plr.member.id): plr for plr in filter(lambda p: p.host, self.players_on_confirmed_teams())}
+        all_hosts = {str(plr.member.id): plr for plr in filter(
+            lambda p: p.host, self.players_on_confirmed_teams())}
         hosts = await host_fcs.get_hosts(all_hosts)
         for host_discord_id, host_fc in hosts.items():
             player: Player = all_hosts.get(host_discord_id)
@@ -272,6 +275,7 @@ class Player:
         self.score = 0
         self.host = host
         self.host_fc = None
+        self.is_late = False
 
     @property
     def mention(self):
@@ -286,17 +290,24 @@ class Player:
     def __lt__(self, other: Player):
         return self.mmr < other.mmr
 
+    def set_is_late(self):
+        self.late = True
+
+    def get_is_late(self):
+        return self.late
+
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi: Mogi, room: Room, tier_info):
+    def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int, tier_info):
         super().__init__()
         self.players = players
-        self.thread:discord.Thread = thread
+        self.thread: discord.Thread = thread
         self.mogi = mogi
         self.room = room
         self.header_text = ""
         self.teams_text = ""
         self.found_winner = False
+        self.penalty_time = penalty_time
         self.tier_info = tier_info
         self.votes = {"FFA": [],
                       "2v2": [],
@@ -305,8 +316,20 @@ class VoteView(View):
                       "6v6": []
                       }
 
+        self.add_button("FFA", self.general_vote_callback)
+        self.add_button("2v2", self.general_vote_callback)
+        self.add_button("3v3", self.general_vote_callback)
+        self.add_button("4v4", self.general_vote_callback)
+
+        if common.SERVER is common.Server.MKW:
+            self.add_button("6v6", self.general_vote_callback)
+
     async def make_teams(self, format_):
-        self.mogi.making_rooms_run_time = datetime.now(timezone.utc)
+        if common.SERVER is common.Server.MKW:
+            self.mogi.making_rooms_run_time = datetime.now(timezone.utc)
+        elif common.SERVER is common.Server.MK8DX:
+            self.mogi.making_rooms_run_time = self.mogi.start_time + \
+                timedelta(minutes=5)
         random.shuffle(self.players)
 
         room = self.mogi.get_room_from_thread(self.thread.id)
@@ -317,14 +340,18 @@ class VoteView(View):
 2) 2v2 - {len(self.votes['2v2'])}
 3) 3v3 - {len(self.votes['3v3'])}
 4) 4v4 - {len(self.votes['4v4'])}
-5) 6v6 - {len(self.votes['6v6'])}
-Winner: {format_[1]}
-
 """
+        if common.SERVER is common.Server.MKW:
+            msg += f"5) 6v6 - {len(self.votes['6v6'])}\n"
+        msg += f"Winner: {format_[1]}\n\n"
 
         room_mmr = round(sum([p.mmr for p in self.players]) / 12)
         room.mmr_average = room_mmr
-        self.header_text = f"**Room {room.room_num} MMR: {room_mmr} - T{get_tier(room_mmr, self.tier_info)}** "
+        self.header_text = ""
+        if common.SERVER is common.Server.MKW:
+            self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - T{get_tier(room_mmr, self.tier_info)}** "
+        elif common.SERVER is common.Server.MK8DX:
+            self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - Tier {get_tier_mk8dx(room_mmr)}** "
         msg += self.header_text + "\n"
 
         teams = []
@@ -346,7 +373,13 @@ Winner: {format_[1]}
             msg += team_text
             self.teams_text += team_text
 
-        penalty_time = self.mogi.making_rooms_run_time + timedelta(minutes=8)
+        if common.SERVER is common.Server.MK8DX:
+            msg += f"\nTable: `/scoreboard`\n"
+
+            msg += f"RandomBot Scoreboard: `/scoreboard {teams_per_room} {', '.join(scoreboard_text)}`\n\n"
+
+        penalty_time = self.mogi.making_rooms_run_time + \
+            timedelta(minutes=self.penalty_time)
         room_open_time = self.mogi.making_rooms_run_time
         potential_host_str = self.room.get_host_str()
         if potential_host_str == "":
@@ -359,7 +392,12 @@ Winner: {format_[1]}
         self.found_winner = True
         await self.thread.send(msg)
         if common.SERVER is common.Server.MKW:
-            new_thread_name = self.thread.name + f" - T{get_tier(room_mmr, self.tier_info)}"
+            new_thread_name = self.thread.name + \
+                f" - T{get_tier(room_mmr, self.tier_info)}"
+            await self.thread.edit(name=new_thread_name)
+        elif common.SERVER is common.Server.MK8DX:
+            new_thread_name = self.thread.name + \
+                f" - Tier {get_tier_mk8dx(room_mmr)}"
             await self.thread.edit(name=new_thread_name)
 
     async def find_winner(self):
@@ -376,7 +414,7 @@ Winner: {format_[1]}
                 winners.append((3, "3v3"))
             if len(self.votes["4v4"]) == most_votes:
                 winners.append((4, "4v4"))
-            if len(self.votes["6v6"]) == most_votes:
+            if common.SERVER is common.Server.MKW and len(self.votes["6v6"]) == most_votes:
                 winners.append((6, "6v6"))
 
             winner = random.choice(winners)
@@ -386,28 +424,17 @@ Winner: {format_[1]}
 
             await self.make_teams(winner)
 
-    @discord.ui.button(label="FFA: 0", custom_id="FFA")
-    async def one_button_callback(self, interaction, button):
-        await self.general_vote_callback(interaction, 1, "FFA")
+    def add_button(self, label, callback):
+        button = discord.ui.Button(label=f"{label}: 0", custom_id=label)
+        button.callback = callback
+        self.add_item(button)
 
-    @discord.ui.button(label="2v2: 0", custom_id="2v2")
-    async def two_button_callback(self, interaction, button):
-        await self.general_vote_callback(interaction, 2, "2v2")
-
-    @discord.ui.button(label="3v3: 0", custom_id="3v3")
-    async def three_button_callback(self, interaction, button):
-        await self.general_vote_callback(interaction, 3, "3v3")
-
-    @discord.ui.button(label="4v4: 0", custom_id="4v4")
-    async def four_button_callback(self, interaction, button):
-        await self.general_vote_callback(interaction, 4, "4v4")
-
-    @discord.ui.button(label="6v6: 0", custom_id="6v6")
-    async def six_button_callback(self, interaction, button):
-        await self.general_vote_callback(interaction, 6, "6v6")
-
-    async def general_vote_callback(self, interaction: discord.Interaction, players_per_team: int, vote: str):
+    async def general_vote_callback(self, interaction: discord.Interaction):
         if not self.found_winner:
+            vote = interaction.data['custom_id']
+            players_per_team = 1
+            if vote != "FFA":
+                players_per_team = int(vote[0])
             original_vote = None
             for vote_option, voter_ids in self.votes.items():
                 if interaction.user.id in voter_ids:
@@ -426,10 +453,11 @@ Winner: {format_[1]}
 
 
 class JoinView(View):
-    def __init__(self, room: Room, get_mmr, bottom_room_num, is_restricted: Callable[[discord.User | discord.Member], bool] | None = None):
+    def __init__(self, room: Room, get_mmr, sub_range_mmr_allowance, bottom_room_num, is_restricted: Callable[[discord.User | discord.Member], bool] | None = None):
         super().__init__(timeout=1200)
         self.room = room
         self.get_mmr = get_mmr
+        self.sub_range_mmr_allowance = sub_range_mmr_allowance
         self.bottom_room_num = bottom_room_num
         self.is_restricted = is_restricted
 
@@ -457,7 +485,7 @@ class JoinView(View):
             return
         mmr_high = 999999 if self.room.room_num == 1 else self.room.mmr_high
         mmr_low = -999999 if self.room.room_num == self.bottom_room_num else self.room.mmr_low
-        if isinstance(user_mmr, int) and mmr_high + 700 > user_mmr > mmr_low - 700:
+        if isinstance(user_mmr, int) and mmr_high + self.sub_range_mmr_allowance > user_mmr > mmr_low - self.sub_range_mmr_allowance:
             self.room.subs.append(interaction.user.id)
             button.disabled = True
             await interaction.followup.edit_message(interaction.message.id, view=self)
@@ -473,3 +501,36 @@ def get_tier(mmr: int, tier_info):
         if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
                 tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
             return tier["ladder_order"]
+
+
+def get_tier_mk8dx(mmr: int):
+    if mmr > 14000:
+        return 'X'
+    if mmr > 13000:
+        return 'S'
+    if mmr > 12000:
+        return 'A'
+    if mmr > 11000:
+        return 'AB'
+    if mmr > 10000:
+        return 'B'
+    if mmr > 9000:
+        return 'BC'
+    if mmr > 8000:
+        return 'C'
+    if mmr > 7000:
+        return 'CD'
+    if mmr > 6000:
+        return 'D'
+    if mmr > 5000:
+        return 'DE'
+    if mmr > 4000:
+        return 'E'
+    if mmr > 3000:
+        return 'EF'
+    if mmr > 2000:
+        return 'F'
+    if mmr > 1000:
+        return 'FG'
+    else:
+        return 'G'
