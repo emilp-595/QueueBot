@@ -284,15 +284,12 @@ class SquadQueue(commands.Cog):
         await interaction.response.defer()
         async with self.LOCK:
             member = interaction.user
-            url = self.URL
             if not self.is_production:
                 if common.SERVER is common.Server.MK8DX:
                     # is actually a user and not a member
                     member = await self.bot.fetch_user(318637887597969419)
-                    url = "https://www.mk8dx-lounge.com"
                 elif common.SERVER is common.Server.MKW:
                     member = await self.bot.fetch_user(82862780591378432)
-                    url = "https://www.mkwlounge.gg"
             mogi = self.get_mogi(interaction)
             if mogi is None or not mogi.started or not mogi.gathering:
                 await interaction.followup.send("Queue has not started yet.")
@@ -1245,14 +1242,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             return
 
         member = ctx.author
-        url = self.URL
         if not self.is_production:
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
-                url = "https://www.mk8dx-lounge.com"
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(82862780591378432)
-                url = "https://www.mkwlounge.gg"
         check_players = [member]
         check_players.extend(members)
         players = self.ratings.get_rating(check_players)
@@ -1298,14 +1292,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             return
 
         member = ctx.author
-        url = self.URL
         if not self.is_production:
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
-                url = "https://www.mk8dx-lounge.com"
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(82862780591378432)
-                url = "https://www.mkwlounge.gg"
         check_players = [member]
         check_players.extend(members)
         players = self.ratings.get_rating(check_players)
