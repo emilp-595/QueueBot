@@ -1,27 +1,64 @@
 import aiohttp
-import discord
 from mogi_objects import Player
+import common
+import discord
+from typing import List
+import asyncio
 
 headers = {'Content-type': 'application/json'}
 
+class RatingsNotReady(Exception):
+    pass
 
-# class LoungeData:
-#     def __init__(self):
-#         self._data = None
+class Ratings:
+    def __init__(self):
+        self.first_run_complete = False
+        self.ratings = {}
 
-#     async def lounge_api_full(self):
-#         async with aiohttp.ClientSession() as session:
-#             async with session.get("https://www.mk8dx-lounge.com/api/player/list") as response:
-#                 if response.status == 200:
-#                     _data_full = await response.json()
-#                     self._data = [
-#                         player for player in _data_full['players'] if "discordId" in player]
+    async def update_ratings(self):
+        if common.SERVER is common.Server.MK8DX:
+            rating_func = self._pull_mk8dx_ratings
+        elif common.SERVER is common.Server.MKW:
+            rating_func = self._pull_mkw_ratings
+        else:
+            raise Exception("Unreachable code.")
 
-#     def data(self):
-#         return self._data
+        status = await rating_func()
+        # If we failed to pull ratings, wait 60 seconds and try again
+        if not status:
+            print(f"Failed to pull ratings for {common.SERVER.name}. Waiting 60 seconds and trying again.")
+            await asyncio.sleep(60)
+            status = await rating_func()
+            # If we failed to pull ratings again, fail.
+            if not status:
+                print(f"Failed to pull ratings for {common.SERVER.name} on 2nd attempt. Skipping.")
+                return
+        self.first_run_complete = True
 
+    async def _pull_mk8dx_ratings(self) -> bool:
+        pass
 
-# lounge_data = LoungeData()
+    async def _pull_mkw_ratings(self):
+        base_url = f"{common.CONFIG["url"]}/api/ladderplayer.php?ladder_type={common.CONFIG["track_type"]}all&fields=discord_user_id,current_mmr"
+        # Do stuff
+        resp = {}
+        self._parse_mkw_ratings(resp)
+
+    def _parse_mk8dx_ratings(self, results: dict):
+        pass
+
+    def _parse_mkw_ratings(self, results: dict):
+        pass
+
+    def get_rating_from_discord_id(self, discord_id: str) -> int | None:
+        if not self.first_run_complete:
+            raise RatingsNotReady("Ratings not pulled yet.")
+        return self.ratings.get(discord_id)
+
+    def get_rating(self, members: List[discord.User | discord.Member]) -> List[Player]:
+        if not self.first_run_complete:
+            raise RatingsNotReady("Ratings not pulled yet.")
+        return []
 
 
 async def mk8dx_mmr(url, members):
