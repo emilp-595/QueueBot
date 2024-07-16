@@ -275,7 +275,6 @@ class Player:
         self.score = 0
         self.host = host
         self.host_fc = None
-        self.is_late = False
 
     @property
     def mention(self):
@@ -289,12 +288,6 @@ class Player:
 
     def __lt__(self, other: Player):
         return self.mmr < other.mmr
-
-    def set_is_late(self):
-        self.late = True
-
-    def get_is_late(self):
-        return self.late
 
 
 class VoteView(View):

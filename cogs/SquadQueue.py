@@ -444,19 +444,13 @@ class SquadQueue(commands.Cog):
             all_confirmed_players = mogi.players_on_confirmed_teams()
             first_late_player_index = (
                 mogi.num_players // mogi.players_per_room) * mogi.players_per_room
-            if common.SERVER is common.Server.MK8DX:
-                for i, player in enumerate(all_confirmed_players, 1):
-                    if i > first_late_player_index:
-                        player.is_late = True
-                    else:
-                        player.is_late = False
+            on_time_players = sorted(
+                all_confirmed_players[:first_late_player_index], reverse=True)
+            late_players = all_confirmed_players[first_late_player_index:]
 
             msg = f"**Queue closing: {discord.utils.format_dt(mogi.start_time)}**\n\n"
             msg += "**Current Mogi List:**\n"
             if common.SERVER is common.Server.MKW:
-                on_time_players = sorted(
-                    all_confirmed_players[:first_late_player_index], reverse=True)
-                late_players = all_confirmed_players[first_late_player_index:]
                 for i, player in enumerate(on_time_players, 1):
                     msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
                     if i % mogi.players_per_room == 0:
@@ -469,11 +463,8 @@ class SquadQueue(commands.Cog):
             elif common.SERVER is common.Server.MK8DX:
                 all_confirmed_players.sort(reverse=True)
                 for i, player in enumerate(all_confirmed_players, 1):
-                    msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)"
-                    if player.is_late:
-                        msg += " (late)\n"
-                    else:
-                        msg += "\n"
+                    late_str = " (late)" if player in late_players else ""
+                    msg += f"{i}) {player.lounge_name} ({player.mmr} MMR){late_str}\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
             msg += f"\n**Last Updated:** {discord.utils.format_dt(datetime.now(timezone.utc), style='R')}"
