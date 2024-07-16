@@ -2,7 +2,7 @@ import json
 from enum import Enum, auto
 from typing import TypeVar, Type, List
 
-_T = TypeVar('T')
+_T = TypeVar('_T')
 
 with open('./config.json', 'r') as cjson:
     CONFIG = json.load(cjson)
