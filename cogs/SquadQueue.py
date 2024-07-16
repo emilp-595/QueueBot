@@ -121,6 +121,9 @@ class SquadQueue(commands.Cog):
         # number of minutes after QUEUE_OPEN_TIME that teams can join the mogi
         self.JOINING_TIME = timedelta(minutes=bot.config["JOINING_TIME"])
 
+        self.DISPLAY_OFFSET_MINUTES = timedelta(
+            minutes=bot.config["DISPLAY_OFFSET_MINUTES"])
+
         # number of minutes after JOINING_TIME for any potential extra teams to join
         self.EXTENSION_TIME = timedelta(minutes=bot.config["EXTENSION_TIME"])
 
@@ -724,6 +727,7 @@ class SquadQueue(commands.Cog):
         msg += f"SITE URL: {self.URL}\n"
         msg += f"FIRST EVENT TIME: {self.FIRST_EVENT_TIME}\n"
         msg += f"TIME BETWEEN EVENTS: {self.QUEUE_OPEN_TIME} minutes\n"
+        msg += f"DISPLAY TIME OFFSET MINUTES FROM JOIN TIME END: {self.DISPLAY_OFFSET_MINUTES} minutes\n"
         msg += f"EVENT JOINING TIME: {self.JOINING_TIME} minutes\n"
         msg += f"EXTENSION TIME: {self.EXTENSION_TIME} minutes\n"
         msg += f"ROOM JOIN PENALTY TIME: {self.ROOM_JOIN_PENALTY_TIME} minutes\n"
@@ -859,11 +863,7 @@ class SquadQueue(commands.Cog):
         """Writes the teams, tier and average of each room per hour."""
         try:
             if mogi is not None:
-                # I want the time displayed to be at the hour but the current way reads as :55 minutes on each queue which looks bad...
-                room_display_time = mogi.start_time
-                if common.SERVER is common.Server.MK8DX:
-                    room_display_time = mogi.start_time + timedelta(minutes=5)
-                await history_channel.send(f"{discord.utils.format_dt(room_display_time)} Rooms")
+                await history_channel.send(f"{discord.utils.format_dt(mogi.display_time)} Rooms")
                 for index, room in enumerate(mogi.rooms, 1):
                     if not room or not room.view:
                         print(
@@ -884,13 +884,11 @@ class SquadQueue(commands.Cog):
         if num_created_rooms >= mogi.max_possible_rooms:
             return
         for i in range(num_created_rooms, mogi.max_possible_rooms):
-            start_time = mogi.start_time
-            if common.SERVER is common.Server.MK8DX:
-                start_time += timedelta(minutes=5)
-            minute = start_time.minute
+            display_time = mogi.display_time
+            minute = display_time.minute
             if len(str(minute)) == 1:
                 minute = '0' + str(minute)
-            room_name = f"{start_time.month}/{start_time.day}, {start_time.hour}:{minute}:00 - Room {i+1}"
+            room_name = f"{display_time.month}/{display_time.day}, {display_time.hour}:{minute}:00 - Room {i+1}"
             try:
                 room_channel = await self.GENERAL_CHANNEL.create_thread(name=room_name,
                                                                         auto_archive_duration=60,
@@ -1125,6 +1123,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 return
             next_event_open_time = self.compute_next_event_open_time()
             next_event_start_time = next_event_open_time + self.JOINING_TIME
+            next_event_display_time = next_event_start_time + self.DISPLAY_OFFSET_MINUTES
             # We don't want to schedule the next event if it would open after it's joining period and during its extension period
             if next_event_start_time < datetime.now(timezone.utc):
                 return
@@ -1147,7 +1146,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                                    players_per_room=12,
                                    mogi_channel=self.MOGI_CHANNEL,
                                    is_automated=True,
-                                   start_time=next_event_start_time)
+                                   start_time=next_event_start_time,
+                                   display_time=next_event_display_time)
 
             print(f"Started Queue for {next_event_start_time}", flush=True)
 
