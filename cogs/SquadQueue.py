@@ -962,8 +962,7 @@ class SquadQueue(commands.Cog):
         late_player_list = all_confirmed_players[first_late_player_index:]
         proposed_list = sorted(mogi.generate_proposed_list(
             allowed_players_check), reverse=True)
-        if common.SERVER is common.Server.MKW:
-            await mogi.populate_host_fcs()
+        await mogi.populate_host_fcs()
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
             msg = f"`Room {room_number} - Player List`\n"
             for player_num, player in enumerate(room_players, 1):
