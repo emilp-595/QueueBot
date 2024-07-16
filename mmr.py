@@ -1,6 +1,7 @@
 import aiohttp
 import discord
 from mogi_objects import Player
+import common
 
 headers = {'Content-type': 'application/json'}
 
@@ -82,7 +83,14 @@ async def mkw_mmr(url, members, track_type):
     return players
 
 
-async def mk8dx_get_mmr_from_discord_id(discord_id, url):
+async def get_mmr(url, members, track_type):
+    if common.SERVER is common.Server.MK8DX:
+        return await mk8dx_mmr(url, members)
+    elif common.SERVER is common.Server.MKW:
+        return await mkw_mmr(url, members, track_type)
+
+
+async def mk8dx_get_mmr_from_discord_id(url, discord_id):
     base_url = url + '/api/player?'
     timeout = aiohttp.ClientTimeout(total=10)
     async with aiohttp.ClientSession(
@@ -100,7 +108,7 @@ async def mk8dx_get_mmr_from_discord_id(discord_id, url):
             return player_data['mmr']
 
 
-async def mkw_get_mmr_from_discord_id(discord_id, track_type, url):
+async def mkw_get_mmr_from_discord_id(url, discord_id, track_type):
     tracks = track_type
     base_url = url + \
         '/api/ladderplayer.php?ladder_type=' + tracks + '&'
@@ -119,3 +127,10 @@ async def mkw_get_mmr_from_discord_id(discord_id, track_type, url):
             if 'current_mmr' not in player_data.keys():
                 return "Player has no mmr"
             return player_data['current_mmr']
+
+
+async def get_mmr_from_discord_id(url, discord_id, track_type):
+    if common.SERVER is common.Server.MK8DX:
+        return await mk8dx_get_mmr_from_discord_id(url, discord_id)
+    elif common.SERVER is common.Server.MKW:
+        return await mkw_get_mmr_from_discord_id(url, discord_id, track_type)

@@ -11,7 +11,7 @@ import json
 
 import common
 from common import divide_chunks
-from mmr import mk8dx_mmr, mk8dx_get_mmr_from_discord_id, mkw_mmr, mkw_get_mmr_from_discord_id
+from mmr import get_mmr, get_mmr_from_discord_id
 from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier, get_tier_mk8dx
 import asyncio
 from collections import defaultdict
@@ -327,10 +327,7 @@ class SquadQueue(commands.Cog):
                 msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
                 msg += "If you believe this is a mistake, please contact a staff member for help.\n"
             else:
-                if common.SERVER is common.Server.MKW:
-                    players = await mkw_mmr(url, [member], self.TRACK_TYPE)
-                elif common.SERVER is common.Server.MK8DX:
-                    players = await mk8dx_mmr(url, [member])
+                players = await get_mmr(url, [member], self.TRACK_TYPE)
 
             if len(players) == 0 or players[0] is None:
                 msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
@@ -426,21 +423,12 @@ class SquadQueue(commands.Cog):
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
         await self.SUB_CHANNEL.send(msg, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
-        view = None
-        if common.SERVER is common.Server.MKW:
-            view = JoinView(room,
-                            lambda discord_id: mkw_get_mmr_from_discord_id(
-                                discord_id, self.TRACK_TYPE, self.URL),
-                            self.SUB_RANGE_MMR_ALLOWANCE,
-                            bottom_room_num,
-                            lambda user: is_restricted(user, self.bot.config))
-        elif common.SERVER is common.Server.MK8DX:
-            view = JoinView(room,
-                            lambda discord_id: mk8dx_get_mmr_from_discord_id(
-                                discord_id, self.URL),
-                            self.SUB_RANGE_MMR_ALLOWANCE,
-                            bottom_room_num,
-                            lambda user: is_restricted(user, self.bot.config))
+        view = JoinView(room,
+                        lambda discord_id: get_mmr_from_discord_id(self.URL,
+                                                                   discord_id, self.TRACK_TYPE),
+                        self.SUB_RANGE_MMR_ALLOWANCE,
+                        bottom_room_num,
+                        lambda user: is_restricted(user, self.bot.config))
         await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         cooldowns[interaction.user.id] = current_time  # Updates cooldown
         await interaction.response.send_message("Sent out request for sub.")
@@ -1250,11 +1238,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 url = "https://www.mkwlounge.gg"
         check_players = [member]
         check_players.extend(members)
-        players = []
-        if common.SERVER is common.Server.MKW:
-            players = await mkw_mmr(url, check_players, self.TRACK_TYPE)
-        elif common.SERVER is common.Server.MK8DX:
-            players = await mk8dx_mmr(url, check_players)
+        players = await get_mmr(url, check_players, self.TRACK_TYPE)
         for i in range(0, 12):
             player = Player(
                 players[0].member, f"{players[0].lounge_name}{i + 1}", players[0].mmr + (10 * i))
@@ -1307,11 +1291,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 url = "https://www.mkwlounge.gg"
         check_players = [member]
         check_players.extend(members)
-        players = []
-        if common.SERVER is common.Server.MKW:
-            players = await mkw_mmr(url, check_players, self.TRACK_TYPE)
-        elif common.SERVER is common.Server.MK8DX:
-            players = await mk8dx_mmr(url, check_players)
+        players = await get_mmr(url, check_players, self.TRACK_TYPE)
         for i in range(0, num_times):
             player = Player(
                 players[0].member, f"{players[0].lounge_name}{i + 1}", players[0].mmr + (10 * i))
