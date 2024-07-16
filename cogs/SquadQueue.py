@@ -29,9 +29,9 @@ cooldowns = defaultdict(int)
 MMR_THRESHOLD_PKL = "mmr_threshold.pkl"
 
 
-def is_restricted(user: discord.User | discord.Member, config: dict) -> bool:
-    muted_role_id = config.get("muted_role_id")
-    restricted_role_id = config.get("restricted_role_id")
+def is_restricted(user: discord.User | discord.Member) -> bool:
+    muted_role_id = common.CONFIG.get("muted_role_id")
+    restricted_role_id = common.CONFIG.get("restricted_role_id")
     return (muted_role_id is not None and user.get_role(muted_role_id)) \
         or (restricted_role_id is not None and user.get_role(restricted_role_id))
 
@@ -433,14 +433,14 @@ class SquadQueue(commands.Cog):
                                 discord_id, self.TRACK_TYPE, self.URL),
                             self.SUB_RANGE_MMR_ALLOWANCE,
                             bottom_room_num,
-                            lambda user: is_restricted(user, self.bot.config))
+                            is_restricted)
         elif common.SERVER is common.Server.MK8DX:
             view = JoinView(room,
                             lambda discord_id: mk8dx_get_mmr_from_discord_id(
                                 discord_id, self.URL),
                             self.SUB_RANGE_MMR_ALLOWANCE,
                             bottom_room_num,
-                            lambda user: is_restricted(user, self.bot.config))
+                            is_restricted)
         await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         cooldowns[interaction.user.id] = current_time  # Updates cooldown
         await interaction.response.send_message("Sent out request for sub.")
@@ -620,7 +620,7 @@ class SquadQueue(commands.Cog):
         if not isinstance(interaction.channel, discord.Thread):
             await interaction.response.send_message(f"Cannot use this command here.", ephemeral=True)
             return
-        if is_restricted(interaction.user, self.bot.config):
+        if is_restricted(interaction.user):
             await interaction.response.send_message(f"You are restricted from using this command.", ephemeral=True)
             return
         if role not in self.helper_staff_roles:
