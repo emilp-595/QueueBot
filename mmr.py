@@ -59,7 +59,7 @@ class Ratings:
         await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mk8dx_response)
 
     async def _pull_mkw_ratings(self):
-        url = f"{common.CONFIG["url"]}/api/ladderplayer.php?ladder_type={common.CONFIG["track_type"]}all&fields=discord_user_id,current_mmr"
+        url = f"{common.CONFIG["url"]}/api/ladderplayer.php?ladder_type={common.CONFIG["track_type"]}all&fields=discord_user_id,current_mmr,player_name"
         await Ratings._pull_ratings(url, self._parse_mkw_ratings, self._validate_mkw_response)
 
     @staticmethod
@@ -105,7 +105,7 @@ class Ratings:
         self.ratings.clear()
         all_players = results.get("players")
         for player in all_players:
-            self.ratings[player["discordId"]] = player["mmr"]
+            self.ratings[player["discordId"]] = (player["mmr"], player["name"])
 
     def _validate_mkw_response(self, results: dict):
         if type(results) is not dict:
@@ -126,10 +126,13 @@ class Ratings:
                 f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response.""")
 
         for player in all_players:
+            if "player_name" not in player:
+                raise BadPlayerData(f"Missing required field 'player_name' in the following player: {player}")
             if "discord_user_id" not in player:
                 raise BadPlayerData(f"Missing required field 'discord_user_id' in the following player: {player}")
             if "current_mmr" not in player:
                 raise BadPlayerData(f"Missing required field 'current_mmr' in the following player: {player}")
+            player_name = player.get("player_name")
             discord_user_id = player.get("discord_user_id")
             current_mmr = player.get("current_mmr")
             if not (type(discord_user_id) is str or discord_user_id is None):
@@ -138,6 +141,9 @@ class Ratings:
             if type(current_mmr) is not int:
                 raise BadPlayerData(
                     f"For field 'current_mmr', expected type 'int' received {type(current_mmr)} for player: {player}")
+            if type(player_name) is not str:
+                raise BadPlayerData(
+                    f"For field 'player_name', expected type 'str' received {type(player_name)} for player: {player}")
 
     def _parse_mkw_ratings(self, results: dict):
         self.ratings.clear()
@@ -145,14 +151,25 @@ class Ratings:
         for player in all_players:
             discord_user_id = player.get("discord_user_id")
             if discord_user_id is not None:
-                self.ratings[player["discord_user_id"]] = player["current_mmr"]
+                self.ratings[player["discord_user_id"]] = (player["current_mmr"], player["player_name"])
 
     def get_rating_from_discord_id(self, discord_id: str) -> int | None:
         if not self.first_run_complete:
             raise RatingsNotReady("Ratings not pulled yet.")
-        return self.ratings.get(discord_id)
+        if discord_id in self.ratings:
+            return self.ratings.get(discord_id)[0]
+        # Make clear that we intend to return None by explicitly doing so
+        else:
+            return None
 
     def get_rating(self, members: List[discord.User | discord.Member]) -> List[Player]:
         if not self.first_run_complete:
             raise RatingsNotReady("Ratings not pulled yet.")
-        return []
+        all_players = []
+        for member in members:
+            member_id = str(member.id)  # Are discord member IDs already strings...?
+            if member_id not in self.ratings:
+                continue
+            rating, name = self.ratings[member_id]
+            all_players.append(Player(member, name, rating))
+        return all_players
