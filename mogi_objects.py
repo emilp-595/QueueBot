@@ -21,7 +21,7 @@ class Mogi:
     ALGORITHM_STATUS_SUCCESS_EMPTY = 4
 
     def __init__(self, sq_id: int, max_players_per_team: int, players_per_room: int, mogi_channel: discord.TextChannel,
-                 is_automated=False, start_time=None, additional_extension_minutes=0):
+                 is_automated=False, start_time=None, display_time=None, additional_extension_minutes=0):
         self.started = False
         self.gathering = False
         self.making_rooms_run = False
@@ -34,6 +34,7 @@ class Mogi:
         self.rooms: List[Room] = []
         self.is_automated = is_automated
         self.start_time = start_time if is_automated else None
+        self.display_time = display_time if is_automated else None
         self.additional_extension = timedelta(
             minutes=additional_extension_minutes)
 
@@ -275,7 +276,6 @@ class Player:
         self.score = 0
         self.host = host
         self.host_fc = None
-        self.is_late = False
 
     @property
     def mention(self):
@@ -289,12 +289,6 @@ class Player:
 
     def __lt__(self, other: Player):
         return self.mmr < other.mmr
-
-    def set_is_late(self):
-        self.late = True
-
-    def get_is_late(self):
-        return self.late
 
 
 class VoteView(View):
