@@ -147,7 +147,7 @@ class Ratings:
 
     def _parse_mkw_ratings(self, results: dict):
         self.ratings.clear()
-        all_players = results.get("players")
+        all_players = results.get("results")
         for player in all_players:
             discord_user_id = player.get("discord_user_id")
             if discord_user_id is not None:
