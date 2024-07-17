@@ -345,7 +345,7 @@ class VoteView(View):
         if common.SERVER is common.Server.MKW:
             self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - T{get_tier(room_mmr, self.tier_info)}** "
         elif common.SERVER is common.Server.MK8DX:
-            self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - Tier {get_tier_mk8dx(room_mmr)}** "
+            self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - Tier {get_tier_mk8dx(room_mmr - 500)}** "
         msg += self.header_text + "\n"
 
         teams = []
@@ -391,7 +391,7 @@ class VoteView(View):
             await self.thread.edit(name=new_thread_name)
         elif common.SERVER is common.Server.MK8DX:
             new_thread_name = self.thread.name + \
-                f" - Tier {get_tier_mk8dx(room_mmr)}"
+                f" - Tier {get_tier_mk8dx(room_mmr - 500)}"
             await self.thread.edit(name=new_thread_name)
 
     async def find_winner(self):
