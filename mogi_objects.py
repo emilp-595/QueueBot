@@ -384,6 +384,7 @@ class VoteView(View):
         room.teams = teams
 
         self.found_winner = True
+        msg = msg.replace("_", "\_")
         await self.thread.send(msg)
         if common.SERVER is common.Server.MKW:
             new_thread_name = self.thread.name + \
