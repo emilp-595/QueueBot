@@ -320,22 +320,29 @@ class SquadQueue(commands.Cog):
                 player.host = host
                 return
 
-            msg = ""
-            placement_role_id = self.bot.config["placement_role_id"]
-            if self.is_production and member.get_role(placement_role_id):
-                starting_player_mmr = self.PLACEMENT_PLAYER_MMR
-                players = [
-                    Player(member, member.display_name, starting_player_mmr)]
-                msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
-                msg += "If you believe this is a mistake, please contact a staff member for help.\n"
-            else:
-                players = self.ratings.get_rating([member])
+            # FIRST look up the player - sometimes MK8DX bots add placement role to non placement players,
+            # so this will check the leaderboard first
+            players = self.ratings.get_rating([member])
 
+            msg = ""
+            # If the no rating was found...
             if len(players) == 0 or players[0] is None:
-                msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
-                msg += "Please try again.  If the problem continues then contact a staff member for help."
-                await interaction.followup.send(msg)
-                return
+                # ... check for placement discord role ID:
+                placement_role_id = self.bot.config["placement_role_id"]
+                if member.get_role(placement_role_id):
+                    starting_player_mmr = self.PLACEMENT_PLAYER_MMR
+                    players = [
+                        Player(member, member.display_name, starting_player_mmr)]
+                    msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi " \
+                           f"with a starting MMR of {starting_player_mmr}.  If you believe this is a mistake, " \
+                           f"please contact a staff member for help.\n"
+                # ...if discord user doesn't have placement role ID, send error to Discord
+                else:
+                    msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was " \
+                          f"unsuccessful.  Please try again.  If the problem continues then contact a staff member " \
+                          f"for help."
+                    await interaction.followup.send(msg)
+                    return
 
             players[0].confirmed = True
             players[0].host = host
