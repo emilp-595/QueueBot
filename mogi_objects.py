@@ -169,7 +169,7 @@ class Room:
         self.view = None
         self.finished = False
         self.host_list: List["Player"] = []
-        self.subs: List["Player"] = []
+        self.subs: List[int] = []
 
     @property
     def mmr_high(self) -> int:
