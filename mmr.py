@@ -58,8 +58,8 @@ class Ratings:
         await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mk8dx_response)
         url = f"""{common.CONFIG["url"]}/api/player/list"""
 
-    async def _pull_mkw_ratings(self):
         await Ratings._pull_ratings(url, self._parse_mkw_ratings, self._validate_mkw_response)
+    async def _pull_mkw_ratings(self) -> bool:
         url = f"""{common.CONFIG["url"]}/api/ladderplayer.php?ladder_type={common.CONFIG["track_type"]}&all&fields=discord_user_id,current_mmr,player_name"""
 
     @staticmethod
