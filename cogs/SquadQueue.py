@@ -87,9 +87,7 @@ class SquadQueue(commands.Cog):
 
         self.HISTORY_CHANNEL = None
 
-        self.GENERAL_CHANNEL = None
-
-        self.LOCK = asyncio.Lock()
+        self.GENERAL_CHANNEL: discord.TextChannel = None
 
         self.URL = bot.config["url"]
 
@@ -144,6 +142,10 @@ class SquadQueue(commands.Cog):
 
         self.ratings = mmr.Ratings()
 
+        # Parameters for tracking if we should send an extension message or not
+        self.last_extension_message_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        self.cur_extension_message = None
+
     @commands.Cog.listener()
     async def on_ready(self):
         self.GUILD = self.bot.get_guild(self.bot.config["guild_id"])
@@ -178,6 +180,7 @@ class SquadQueue(commands.Cog):
         print("Ready!", flush=True)
         self.refresh_ratings.start()
         self.refresh_helper_roles.start()
+        self.check_room_channels_task.start()
 
     async def lockdown(self, channel: discord.TextChannel):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
@@ -266,7 +269,7 @@ class SquadQueue(commands.Cog):
         """
         mogi = self.get_mogi(interaction)
         if mogi is None or not mogi.started or not mogi.gathering:
-            await interaction.followup.send("Queue has not started yet.")
+            await interaction.response.send_message("Queue has not started yet.")
             return
         mogi.additional_extension += timedelta(minutes=minutes)
         await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
@@ -284,101 +287,105 @@ class SquadQueue(commands.Cog):
         await self.join_queue(interaction)
 
     async def join_queue(self, interaction: discord.Interaction, host=False):
-        await interaction.response.defer()
-        async with self.LOCK:
-            member = interaction.user
-            if not self.is_production:
-                if common.SERVER is common.Server.MK8DX:
-                    # is actually a user and not a member
-                    member = await self.bot.fetch_user(318637887597969419)
-                elif common.SERVER is common.Server.MKW:
-                    member = await self.bot.fetch_user(82862780591378432)
-            mogi = self.get_mogi(interaction)
-            if mogi is None or not mogi.started or not mogi.gathering:
-                await interaction.followup.send("Queue has not started yet.")
+        member = interaction.user
+        if not self.is_production:
+            if common.SERVER is common.Server.MK8DX:
+                # is actually a user and not a member
+                member = await self.bot.fetch_user(318637887597969419)
+            elif common.SERVER is common.Server.MKW:
+                member = await self.bot.fetch_user(82862780591378432)
+        mogi = self.get_mogi(interaction)
+        if mogi is None or not mogi.started or not mogi.gathering:
+            await interaction.response.send_message("Queue has not started yet.")
+            return
+
+        player_team = mogi.check_player(member)
+        player = None if player_team is None else player_team.get_player(
+            member)
+
+        if player is not None:
+            original_host_status = player.host
+            player.host = host
+            # The player is already signed up, but they might be changing to a host or non-host. Begin checks:
+            # The player was queued as host, and they queued again as a host
+            if original_host_status and host:
+                await interaction.response.send_message(f"{interaction.user.mention} is already signed up as a host.")
+            # The player was queued as host, and they queued again as a non-host
+            elif original_host_status and not host:
+                await interaction.response.send_message(f"{interaction.user.mention} has changed to a non-host.")
+            # The player was not queued as host, but they are changing to a host
+            elif not original_host_status and host:
+                await interaction.response.send_message(f"{interaction.user.mention} has changed to a host.")
+            # The player was not queued as host and did not change to a host
+            elif not original_host_status and not host:
+                await interaction.response.send_message(f"{interaction.user.mention} is already signed up.")
+            return
+
+        # FIRST look up the player - sometimes MK8DX bots add placement role to non placement players,
+        # so this will check the leaderboard first
+        players = self.ratings.get_rating([member])
+
+        msg = ""
+        # If the no rating was found...
+        if len(players) == 0 or players[0] is None:
+            # ... check for placement discord role ID:
+            placement_role_id = self.bot.config["placement_role_id"]
+            if member.get_role(placement_role_id):
+                starting_player_mmr = self.PLACEMENT_PLAYER_MMR
+                players = [
+                    Player(member, member.display_name, starting_player_mmr)]
+                msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi " \
+                       f"with a starting MMR of {starting_player_mmr}.  If you believe this is a mistake, " \
+                       f"please contact a staff member for help.\n"
+            # ...if discord user doesn't have placement role ID, send error to Discord
+            else:
+                msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was " \
+                      f"unsuccessful.  Please try again.  If the problem continues then contact a staff member " \
+                      f"for help."
+                await interaction.response.send_message(msg)
                 return
 
-            player_team = mogi.check_player(member)
-            player = None if player_team is None else player_team.get_player(
-                member)
+        players[0].confirmed = True
+        players[0].host = host
+        squad = Team(players)
+        mogi.teams.append(squad)
+        host_str = " as a host " if host else " "
+        msg += f"{players[0].lounge_name} joined queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
 
-            if player is not None:
-                # The player is already signed up, but they might be changing to a host or non-host. Begin checks:
-                # The player was queued as host, and they queued again as a host
-                if player.host and host:
-                    await interaction.followup.send(f"{interaction.user.mention} is already signed up as a host.")
-                # The player was queued as host, and they queued again as a non-host
-                elif player.host and not host:
-                    await interaction.followup.send(f"{interaction.user.mention} has changed to a non-host.")
-                # The player was not queued as host, but they are changing to a host
-                elif not player.host and host:
-                    await interaction.followup.send(f"{interaction.user.mention} has changed to a host.")
-                # The player was not queued as host and did not change to a host
-                elif not player.host and not host:
-                    await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
-
-                player.host = host
-                return
-
-            # FIRST look up the player - sometimes MK8DX bots add placement role to non placement players,
-            # so this will check the leaderboard first
-            players = self.ratings.get_rating([member])
-
-            msg = ""
-            # If the no rating was found...
-            if len(players) == 0 or players[0] is None:
-                # ... check for placement discord role ID:
-                placement_role_id = self.bot.config["placement_role_id"]
-                if member.get_role(placement_role_id):
-                    starting_player_mmr = self.PLACEMENT_PLAYER_MMR
-                    players = [
-                        Player(member, member.display_name, starting_player_mmr)]
-                    msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi " \
-                           f"with a starting MMR of {starting_player_mmr}.  If you believe this is a mistake, " \
-                           f"please contact a staff member for help.\n"
-                # ...if discord user doesn't have placement role ID, send error to Discord
-                else:
-                    msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was " \
-                          f"unsuccessful.  Please try again.  If the problem continues then contact a staff member " \
-                          f"for help."
-                    await interaction.followup.send(msg)
-                    return
-
-            players[0].confirmed = True
-            players[0].host = host
-            squad = Team(players)
-            mogi.teams.append(squad)
-            host_str = " as a host " if host else " "
-            msg += f"{players[0].lounge_name} joined queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
-
-            await interaction.followup.send(msg)
-            await self.check_room_channels(mogi)
-            await self.check_num_teams(mogi)
+        event_status_launched = self.check_close_event_change()
+        try:
+            await interaction.response.send_message(msg)
+        finally:
+            if event_status_launched:
+                await self.launch_mogi()
 
     @app_commands.command(name="d")
     @app_commands.guild_only()
     async def drop(self, interaction: discord.Interaction):
         """Remove user from mogi"""
-        await interaction.response.defer()
-        async with self.LOCK:
-            mogi = self.get_mogi(interaction)
-            if mogi is None or not mogi.started or not mogi.gathering:
-                await interaction.followup.send("Queue has not started yet.")
-                return
+        mogi = self.get_mogi(interaction)
+        if mogi is None or not mogi.started or not mogi.gathering:
+            await interaction.response.send_message("Queue has not started yet.")
+            return
 
-            member = interaction.user
-            squad = mogi.check_player(member)
-            if squad is None:
-                await interaction.followup.send(f"{member.display_name} is not currently in this event; type `/c` or `/ch` to join")
-                return
-            mogi.teams.remove(squad)
-            msg = "Removed "
-            msg += ", ".join([p.lounge_name for p in squad.players])
-            msg += f" from the mogi {discord.utils.format_dt(mogi.start_time, style='R')}"
-            msg += f", `[{mogi.count_registered()} players]`"
+        member = interaction.user
+        squad = mogi.check_player(member)
+        if squad is None:
+            await interaction.response.send_message(f"{member.display_name} is not currently in this event; type `/c` or `/ch` to join")
+            return
+        mogi.teams.remove(squad)
+        msg = "Removed "
+        msg += ", ".join([p.lounge_name for p in squad.players])
+        msg += f" from the mogi {discord.utils.format_dt(mogi.start_time, style='R')}"
+        msg += f", `[{mogi.count_registered()} players]`"
 
-            await interaction.followup.send(msg)
-            await self.check_num_teams(mogi)
+        event_status_launched = self.check_close_event_change()
+        try:
+            await interaction.response.send_message(msg)
+        finally:
+            if event_status_launched:
+                await self.launch_mogi()
+
 
     @app_commands.command(name="sub")
     @app_commands.guild_only()
@@ -580,24 +587,28 @@ class SquadQueue(commands.Cog):
     @app_commands.guild_only()
     async def remove_player(self, interaction: discord.Interaction, member: discord.Member):
         """Removes a specific player from the current queue.  Staff use only."""
-        await interaction.response.defer()
-        async with self.LOCK:
-            mogi = self.get_mogi(interaction)
-            if mogi is None or not mogi.started or not mogi.gathering:
-                await interaction.followup.send("Queue has not started yet.")
-                return
+        mogi = self.get_mogi(interaction)
+        if mogi is None or not mogi.started or not mogi.gathering:
+            await interaction.response.send_message("Queue has not started yet.")
+            return
 
-            squad = mogi.check_player(member)
-            if squad is None:
-                await interaction.followup.send(f"{member.display_name} is not currently in this event")
-                return
-            mogi.teams.remove(squad)
-            msg = "Staff has removed "
-            msg += ", ".join([p.lounge_name for p in squad.players])
-            msg += f" from the mogi {discord.utils.format_dt(mogi.start_time, style='R')}"
-            msg += f", `[{mogi.count_registered()} players]`"
+        squad = mogi.check_player(member)
+        if squad is None:
+            await interaction.response.send_message(f"{member.display_name} is not currently in this event")
+            return
+        mogi.teams.remove(squad)
+        msg = "Staff has removed "
+        msg += ", ".join([p.lounge_name for p in squad.players])
+        msg += f" from the mogi {discord.utils.format_dt(mogi.start_time, style='R')}"
+        msg += f", `[{mogi.count_registered()} players]`"
 
-            await interaction.followup.send(msg)
+        event_status_launched = self.check_close_event_change()
+        try:
+            await interaction.response.send_message(msg)
+        finally:
+            if event_status_launched:
+                await self.launch_mogi()
+
 
     @app_commands.command(name="ping_staff")
     @app_commands.guild_only()
@@ -886,8 +897,6 @@ class SquadQueue(commands.Cog):
     # since discord only allows 50 thread channels to be created per 5 minutes.
     async def check_room_channels(self, mogi):
         num_created_rooms = len(mogi.rooms)
-        if num_created_rooms >= mogi.max_possible_rooms:
-            return
         for i in range(num_created_rooms, mogi.max_possible_rooms):
             display_time = mogi.display_time
             minute = display_time.minute
@@ -898,6 +907,11 @@ class SquadQueue(commands.Cog):
                 room_channel = await self.GENERAL_CHANNEL.create_thread(name=room_name,
                                                                         auto_archive_duration=60,
                                                                         invitable=False)
+                # Address race condition - race condition would result in making too many rooms
+                if len(mogi.rooms) >= mogi.max_possible_rooms:
+                    await room_channel.delete()
+                    return
+
             except Exception as e:
                 print(traceback.format_exc())
                 err_msg = f"\nAn error has occurred while creating a room channel:\n{e}"
@@ -927,6 +941,8 @@ class SquadQueue(commands.Cog):
         was_gathering = mogi.gathering
         mogi.making_rooms_run = True
         mogi.gathering = False
+
+        await self.check_room_channels(mogi)
 
         await self.lockdown(mogi.mogi_channel)
         if was_gathering:
@@ -1024,49 +1040,60 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         self.old_events.append(self.ongoing_event)
         self.ongoing_event = None
 
-    async def check_num_teams(self, mogi: Mogi):
-        if not mogi.gathering or not mogi.is_automated:
-            return
-        cur_time = datetime.now(timezone.utc)
-        if mogi.start_time <= cur_time:
-            num_leftover_teams = mogi.count_registered() % int(
-                (12 / mogi.max_player_per_team))
-            if num_leftover_teams == 0:
-                mogi.gathering = False
-                await self.lockdown(mogi.mogi_channel)
-                await mogi.mogi_channel.send(
-                    "A sufficient amount of players has been reached, so the mogi has been closed to extra players. Rooms will be made within the next minute.")
-
-    async def ongoing_mogi_checks(self):
+    def check_close_event_change(self) -> Tuple[bool, bool]:
+        """Returns a bool indicating if the event was gathering but this function then closed the mogi depending on
+        the time and number of players or other logic"""
         mogi = self.ongoing_event
         if mogi is not None:
-            # If it's not automated, not started, we've already started making the rooms, don't run this
-            async with self.LOCK:
-                if not mogi.is_automated or not mogi.started or mogi.making_rooms_run:
-                    return
-                cur_time = datetime.now(timezone.utc)
-                force_start_time = mogi.start_time + \
-                    self.EXTENSION_TIME + mogi.additional_extension
-                if force_start_time <= cur_time:
+            # If it's not automated, don't run this
+            # If the mogi has not started, don't run this
+            # If the mogi is not gathering, don't run this
+            # If the mogi has already made the rooms, don't run this.
+            # This logic was taken from a much more complex bot. It could be greatly simplified since all events here
+            # are automated and follow a certain flow, but I am not going to change what isn't broken.
+            if not mogi.is_automated or not mogi.started or mogi.making_rooms_run or not mogi.gathering:
+                return False
+            cur_time = datetime.now(timezone.utc)
+            force_start_time = mogi.start_time + \
+                self.EXTENSION_TIME + mogi.additional_extension
+            if force_start_time <= cur_time:
+                mogi.gathering = False
+                self.cur_extension_message = None
+                return True
+            elif mogi.start_time <= cur_time and mogi.gathering:
+                # check if there are an even amount of teams since we are past the queue time
+                num_leftover_teams = mogi.count_registered() % int(
+                    (12 / mogi.max_player_per_team))
+                if num_leftover_teams == 0:
                     mogi.gathering = False
-                elif mogi.start_time <= cur_time and mogi.gathering:
-                    # check if there are an even amount of teams since we are past the queue time
-                    num_leftover_teams = mogi.count_registered() % int(
-                        (12 / mogi.max_player_per_team))
-                    if num_leftover_teams == 0:
-                        mogi.gathering = False
-                    else:
-                        if int(cur_time.second / 20) == 0:
-                            minutes_left = (force_start_time -
-                                            cur_time).seconds // 60
-                            x_teams = int(
-                                int(12 / mogi.max_player_per_team) - num_leftover_teams)
-                            await mogi.mogi_channel.send(
-                                f"Need {x_teams} more player(s) to start immediately. Starting in {minutes_left + 1} minute(s) regardless.")
-            if not mogi.gathering:
-                await self.delete_list_messages(0)
-                await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
-                await self.add_teams_to_rooms(mogi, (mogi.start_time.minute) % 60, True)
+                    self.cur_extension_message = None
+                    return True
+                else:
+                    cur_extension_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+                    # At this point, we're in the extension time. So if the extension timestamp is in a different
+                    # minute than the last one, we set the new extension message to be sent.
+                    if cur_extension_timestamp != self.last_extension_message_timestamp:
+                        self.last_extension_message_timestamp = cur_extension_timestamp
+                        minutes_left = (force_start_time -
+                                        cur_time).seconds // 60
+                        x_teams = int(
+                            int(12 / mogi.max_player_per_team) - num_leftover_teams)
+                        self.cur_extension_message = f"Need {x_teams} more player(s) to start immediately. Starting in {minutes_left + 1} minute(s) regardless."
+        return False
+
+    async def launch_mogi(self):
+        mogi = self.ongoing_event
+        if mogi is not None:
+            await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
+            await self.delete_list_messages(0)
+            await self.add_teams_to_rooms(mogi, mogi.start_time.minute % 60, True)
+
+    async def check_send_extension_message(self):
+        if self.cur_extension_message is not None:
+            to_send = self.cur_extension_message
+            self.cur_extension_message = None
+            if self.ongoing_event is not None:
+                await self.ongoing_event.mogi_channel.send(to_send)
 
     async def scheduler_mogi_start(self):
         cur_time = datetime.now(timezone.utc)
@@ -1108,7 +1135,9 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         except Exception as e:
             print(traceback.format_exc())
         try:
-            await self.ongoing_mogi_checks()
+            if self.check_close_event_change():
+                await self.launch_mogi()
+            await self.check_send_extension_message()
         except Exception as e:
             print(traceback.format_exc())
 
@@ -1170,6 +1199,15 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 self.old_events.remove(mogi)
         except Exception as e:
             print(traceback.format_exc())
+
+    @tasks.loop(minutes=3)
+    async def check_room_channels_task(self):
+        try:
+            if self.ongoing_event is not None:
+                await self.check_room_channels(self.ongoing_event)
+        except:
+            print(traceback.format_exc())
+
 
     @tasks.loop(hours=24)
     async def refresh_helper_roles(self):
@@ -1247,8 +1285,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             mogi.teams.append(squad)
         msg = f"{players[0].lounge_name} added 12 times."
         await self.queue_or_send(ctx, msg)
-        await self.check_room_channels(mogi)
-        await self.check_num_teams(mogi)
+        if self.check_close_event_change():
+            await self.launch_mogi()
 
     @commands.command(name="debug_add_many_ratings")
     @commands.is_owner()
@@ -1259,15 +1297,21 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         if (not await self.is_started(ctx, mogi)
                 or not await self.is_gathering(ctx, mogi)):
             return
+        member = ctx.author
+        if self.is_production:
+            if common.SERVER is common.Server.MK8DX:
+                member = await self.bot.fetch_user(318637887597969419)
+            elif common.SERVER is common.Server.MKW:
+                member = await self.bot.fetch_user(433353529655296011)
         for i, rating in enumerate(ratings, 1):
             if rating.isdecimal():
-                player = Player(ctx.author, f"{ctx.author.display_name} {i}", int(
+                player = Player(member, f"{member.name} {i}", int(
                     rating), confirmed=True)
                 mogi.teams.append(Team([player]))
         msg = f"Players added with the following ratings: {' '.join(['`' + r + '`' for r in ratings])}"
         await self.queue_or_send(ctx, msg)
-        await self.check_room_channels(mogi)
-        await self.check_num_teams(mogi)
+        if self.check_close_event_change():
+            await self.launch_mogi()
 
     @commands.command(name="debug_add_many_players")
     @commands.is_owner()
@@ -1281,11 +1325,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             return
 
         member = ctx.author
-        if not self.is_production:
+        if self.is_production:
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
-                member = await self.bot.fetch_user(82862780591378432)
+                member = await self.bot.fetch_user(314861232693706752)
         check_players = [member]
         check_players.extend(members)
         players = self.ratings.get_rating(check_players)
@@ -1297,8 +1341,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             mogi.teams.append(squad)
         msg = f"{players[0].lounge_name} added {num_times} times."
         await self.queue_or_send(ctx, msg)
-        await self.check_room_channels(mogi)
-        await self.check_num_teams(mogi)
+        if self.check_close_event_change():
+            await self.launch_mogi()
 
     @commands.command(name="debug_start_rooms")
     @commands.is_owner()
