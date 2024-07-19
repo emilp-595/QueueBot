@@ -1069,11 +1069,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                     self.cur_extension_message = None
                     return True
                 else:
-                    cur_time = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+                    cur_extension_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
                     # At this point, we're in the extension time. So if the extension timestamp is in a different
                     # minute than the last one, we set the new extension message to be sent.
-                    if cur_time != self.last_extension_message_timestamp:
-                        self.last_extension_message_timestamp = cur_time
+                    if cur_extension_timestamp != self.last_extension_message_timestamp:
+                        self.last_extension_message_timestamp = cur_extension_timestamp
                         minutes_left = (force_start_time -
                                         cur_time).seconds // 60
                         x_teams = int(
