@@ -169,7 +169,8 @@ class Ratings:
             if discord_user_id is not None:
                 self.ratings[player["discord_user_id"]] = (player["current_mmr"], player["player_name"])
 
-    def get_rating_from_discord_id(self, discord_id: str) -> int | None:
+    def get_rating_from_discord_id(self, discord_id: int | str) -> int | None:
+        discord_id = str(discord_id)
         if not self.first_run_complete:
             raise RatingsNotReady("Ratings not pulled yet.")
         if discord_id in self.ratings:
