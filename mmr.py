@@ -55,12 +55,12 @@ class Ratings:
         self.first_run_complete = True
 
     async def _pull_mk8dx_ratings(self) -> bool:
-        await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mk8dx_response)
         url = f"""{common.CONFIG["url"]}/api/player/list"""
+        return await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mk8dx_response)
 
-        await Ratings._pull_ratings(url, self._parse_mkw_ratings, self._validate_mkw_response)
     async def _pull_mkw_ratings(self) -> bool:
         url = f"""{common.CONFIG["url"]}/api/ladderplayer.php?ladder_type={common.CONFIG["track_type"]}&all&fields=discord_user_id,current_mmr,player_name"""
+        return await Ratings._pull_ratings(url, self._parse_mkw_ratings, self._validate_mkw_response)
 
     @staticmethod
     async def _pull_ratings(url, parser, validator) -> bool:
@@ -77,6 +77,8 @@ class Ratings:
                     print(traceback.format_exc())
                     return False
                 parser(data)
+                return True
+        return False  # Didn't run request successfully, so we return it was a failure
 
     def _validate_mk8dx_response(self, results: dict):
         if type(results) is not dict:
