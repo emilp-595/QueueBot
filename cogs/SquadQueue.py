@@ -303,21 +303,21 @@ class SquadQueue(commands.Cog):
                 member)
 
             if player is not None:
+                original_host_status = player.host
+                player.host = host
                 # The player is already signed up, but they might be changing to a host or non-host. Begin checks:
                 # The player was queued as host, and they queued again as a host
-                if player.host and host:
+                if original_host_status and host:
                     await interaction.followup.send(f"{interaction.user.mention} is already signed up as a host.")
                 # The player was queued as host, and they queued again as a non-host
-                elif player.host and not host:
+                elif original_host_status and not host:
                     await interaction.followup.send(f"{interaction.user.mention} has changed to a non-host.")
                 # The player was not queued as host, but they are changing to a host
-                elif not player.host and host:
+                elif not original_host_status and host:
                     await interaction.followup.send(f"{interaction.user.mention} has changed to a host.")
                 # The player was not queued as host and did not change to a host
-                elif not player.host and not host:
+                elif not original_host_status and not host:
                     await interaction.followup.send(f"{interaction.user.mention} is already signed up.")
-
-                player.host = host
                 return
 
             # FIRST look up the player - sometimes MK8DX bots add placement role to non placement players,
