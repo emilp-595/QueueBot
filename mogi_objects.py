@@ -477,7 +477,7 @@ class JoinView(View):
         if isinstance(user_mmr, int) and mmr_high + self.sub_range_mmr_allowance > user_mmr > mmr_low - self.sub_range_mmr_allowance:
             self.room.subs.append(interaction.user.id)
             button.disabled = True
-            await interaction.response.edit_message(interaction.message.id, view=self)
+            await interaction.response.edit_message(view=self)
             mention = interaction.user.mention
             await self.room.thread.send(f"{mention} has joined the room.")
         else:
