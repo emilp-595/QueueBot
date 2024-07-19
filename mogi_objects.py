@@ -169,7 +169,7 @@ class Room:
         self.view = None
         self.finished = False
         self.host_list: List["Player"] = []
-        self.subs: List["Player"] = []
+        self.subs: List[int] = []
 
     @property
     def mmr_high(self) -> int:
@@ -447,10 +447,10 @@ class VoteView(View):
 
 
 class JoinView(View):
-    def __init__(self, room: Room, get_mmr, sub_range_mmr_allowance, bottom_room_num, is_restricted: Callable[[discord.User | discord.Member], bool] | None = None):
+    def __init__(self, room: Room, get_rating_from_discord_id, sub_range_mmr_allowance, bottom_room_num, is_restricted: Callable[[discord.User | discord.Member], bool] | None = None):
         super().__init__(timeout=1200)
         self.room = room
-        self.get_mmr = get_mmr
+        self.get_rating_from_discord_id = get_rating_from_discord_id
         self.sub_range_mmr_allowance = sub_range_mmr_allowance
         self.bottom_room_num = bottom_room_num
         self.is_restricted = is_restricted
@@ -467,7 +467,7 @@ class JoinView(View):
                 "You are already in this room.", ephemeral=True)
             return
         try:
-            user_mmr = await self.get_mmr(interaction.user.id)
+            user_mmr = self.get_rating_from_discord_id(interaction.user.id)
         except:
             await interaction.followup.send(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)

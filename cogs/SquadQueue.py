@@ -11,7 +11,7 @@ import json
 
 import common
 from common import divide_chunks
-from mmr import get_mmr, get_mmr_from_discord_id
+import mmr
 from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier, get_tier_mk8dx
 import asyncio
 from collections import defaultdict
@@ -29,9 +29,9 @@ cooldowns = defaultdict(int)
 MMR_THRESHOLD_PKL = "mmr_threshold.pkl"
 
 
-def is_restricted(user: discord.User | discord.Member, config: dict) -> bool:
-    muted_role_id = config.get("muted_role_id")
-    restricted_role_id = config.get("restricted_role_id")
+def is_restricted(user: discord.User | discord.Member) -> bool:
+    muted_role_id = common.CONFIG.get("muted_role_id")
+    restricted_role_id = common.CONFIG.get("restricted_role_id")
     return (muted_role_id is not None and user.get_role(muted_role_id)) \
         or (restricted_role_id is not None and user.get_role(restricted_role_id))
 
@@ -142,6 +142,8 @@ class SquadQueue(commands.Cog):
         # These will be refreshed every 24 hours to ensure that the correct name displays for the options
         self.helper_staff_roles: Dict[str, discord.Role] = {}
 
+        self.ratings = mmr.Ratings()
+
     @commands.Cog.listener()
     async def on_ready(self):
         self.GUILD = self.bot.get_guild(self.bot.config["guild_id"])
@@ -174,7 +176,7 @@ class SquadQueue(commands.Cog):
         print(f"History Channel - {self.HISTORY_CHANNEL}", flush=True)
         print(f"General Channel - {self.GENERAL_CHANNEL}", flush=True)
         print("Ready!", flush=True)
-
+        self.refresh_ratings.start()
         self.refresh_helper_roles.start()
 
     async def lockdown(self, channel: discord.TextChannel):
@@ -285,15 +287,12 @@ class SquadQueue(commands.Cog):
         await interaction.response.defer()
         async with self.LOCK:
             member = interaction.user
-            url = self.URL
             if not self.is_production:
                 if common.SERVER is common.Server.MK8DX:
                     # is actually a user and not a member
                     member = await self.bot.fetch_user(318637887597969419)
-                    url = "https://www.mk8dx-lounge.com"
                 elif common.SERVER is common.Server.MKW:
                     member = await self.bot.fetch_user(82862780591378432)
-                    url = "https://www.mkwlounge.gg"
             mogi = self.get_mogi(interaction)
             if mogi is None or not mogi.started or not mogi.gathering:
                 await interaction.followup.send("Queue has not started yet.")
@@ -321,22 +320,29 @@ class SquadQueue(commands.Cog):
                 player.host = host
                 return
 
-            msg = ""
-            placement_role_id = self.bot.config["placement_role_id"]
-            if self.is_production and member.get_role(placement_role_id):
-                starting_player_mmr = self.PLACEMENT_PLAYER_MMR
-                players = [
-                    Player(member, member.display_name, starting_player_mmr)]
-                msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi with a starting MMR of {starting_player_mmr}.  "
-                msg += "If you believe this is a mistake, please contact a staff member for help.\n"
-            else:
-                players = await get_mmr(url, [member], self.TRACK_TYPE)
+            # FIRST look up the player - sometimes MK8DX bots add placement role to non placement players,
+            # so this will check the leaderboard first
+            players = self.ratings.get_rating([member])
 
+            msg = ""
+            # If the no rating was found...
             if len(players) == 0 or players[0] is None:
-                msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was unsuccessful.  "
-                msg += "Please try again.  If the problem continues then contact a staff member for help."
-                await interaction.followup.send(msg)
-                return
+                # ... check for placement discord role ID:
+                placement_role_id = self.bot.config["placement_role_id"]
+                if member.get_role(placement_role_id):
+                    starting_player_mmr = self.PLACEMENT_PLAYER_MMR
+                    players = [
+                        Player(member, member.display_name, starting_player_mmr)]
+                    msg += f"{players[0].lounge_name} is assumed to be a new player and will be playing this mogi " \
+                           f"with a starting MMR of {starting_player_mmr}.  If you believe this is a mistake, " \
+                           f"please contact a staff member for help.\n"
+                # ...if discord user doesn't have placement role ID, send error to Discord
+                else:
+                    msg = f"{interaction.user.mention} fetch for MMR has failed and joining the queue was " \
+                          f"unsuccessful.  Please try again.  If the problem continues then contact a staff member " \
+                          f"for help."
+                    await interaction.followup.send(msg)
+                    return
 
             players[0].confirmed = True
             players[0].host = host
@@ -427,11 +433,10 @@ class SquadQueue(commands.Cog):
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
         await self.SUB_CHANNEL.send(msg, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         view = JoinView(room,
-                        lambda discord_id: get_mmr_from_discord_id(self.URL,
-                                                                   discord_id, self.TRACK_TYPE),
+                        self.ratings.get_rating_from_discord_id,
                         self.SUB_RANGE_MMR_ALLOWANCE,
                         bottom_room_num,
-                        lambda user: is_restricted(user, self.bot.config))
+                        is_restricted)
         await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         cooldowns[interaction.user.id] = current_time  # Updates cooldown
         await interaction.response.send_message("Sent out request for sub.")
@@ -602,7 +607,7 @@ class SquadQueue(commands.Cog):
         if not isinstance(interaction.channel, discord.Thread):
             await interaction.response.send_message(f"Cannot use this command here.", ephemeral=True)
             return
-        if is_restricted(interaction.user, self.bot.config):
+        if is_restricted(interaction.user):
             await interaction.response.send_message(f"You are restricted from using this command.", ephemeral=True)
             return
         if role not in self.helper_staff_roles:
@@ -1189,6 +1194,14 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         except Exception as e:
             print(traceback.format_exc())
 
+    @tasks.loop(minutes=10)
+    async def refresh_ratings(self):
+        """Refreshes the ratings"""
+        try:
+            await self.ratings.update_ratings()
+        except Exception as e:
+            print(traceback.format_exc())
+
     def get_event_str(self, mogi: Mogi):
         mogi_time = discord.utils.format_dt(mogi.start_time, style="F")
         mogi_time_relative = discord.utils.format_dt(
@@ -1218,17 +1231,14 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             return
 
         member = ctx.author
-        url = self.URL
         if not self.is_production:
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
-                url = "https://www.mk8dx-lounge.com"
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(82862780591378432)
-                url = "https://www.mkwlounge.gg"
         check_players = [member]
         check_players.extend(members)
-        players = await get_mmr(url, check_players, self.TRACK_TYPE)
+        players = self.ratings.get_rating(check_players)
         for i in range(0, 12):
             player = Player(
                 players[0].member, f"{players[0].lounge_name}{i + 1}", players[0].mmr + (10 * i))
@@ -1271,17 +1281,14 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             return
 
         member = ctx.author
-        url = self.URL
         if not self.is_production:
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
-                url = "https://www.mk8dx-lounge.com"
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(82862780591378432)
-                url = "https://www.mkwlounge.gg"
         check_players = [member]
         check_players.extend(members)
-        players = await get_mmr(url, check_players, self.TRACK_TYPE)
+        players = self.ratings.get_rating(check_players)
         for i in range(0, num_times):
             player = Player(
                 players[0].member, f"{players[0].lounge_name}{i + 1}", players[0].mmr + (10 * i))

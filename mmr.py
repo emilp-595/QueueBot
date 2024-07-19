@@ -1,136 +1,192 @@
 import aiohttp
-import discord
 from mogi_objects import Player
 import common
+import discord
+from typing import List
+import asyncio
+import traceback
 
 headers = {'Content-type': 'application/json'}
 
 
-# class LoungeData:
-#     def __init__(self):
-#         self._data = None
-
-#     async def lounge_api_full(self):
-#         async with aiohttp.ClientSession() as session:
-#             async with session.get("https://www.mk8dx-lounge.com/api/player/list") as response:
-#                 if response.status == 200:
-#                     _data_full = await response.json()
-#                     self._data = [
-#                         player for player in _data_full['players'] if "discordId" in player]
-
-#     def data(self):
-#         return self._data
+class RatingsNotReady(Exception):
+    pass
 
 
-# lounge_data = LoungeData()
+class RatingRequestFailure(Exception):
+    pass
 
 
-async def mk8dx_mmr(url, members):
-    base_url = url + '/api/player?'
-    players = []
-    timeout = aiohttp.ClientTimeout(total=10)
-    try:
-        async with aiohttp.ClientSession(
-            timeout=timeout,
-            auth=aiohttp.BasicAuth(
-                "username", "password")) as session:
-            for member in members:
-                request_text = f"discordId={member.id}"
-                request_url = base_url + request_text
-                async with session.get(request_url, headers=headers) as resp:
-                    if resp.status != 200:
-                        players.append(None)
-                        continue
-                    player_data = await resp.json()
-                    if 'mmr' not in player_data.keys():
-                        players.append(
-                            Player(member, player_data['name'], None))
-                        continue
-                    players.append(
-                        Player(member, player_data['name'], player_data['mmr']))
-    except:
-        print(f"Fetch for player {members[0]} has failed.", flush=True)
-    return players
+class BadRatingData(RatingRequestFailure):
+    pass
 
 
-async def mkw_mmr(url, members, track_type):
-    tracks = track_type
-    base_url = url + '/api/ladderplayer.php?ladder_type=' + tracks + '&'
-    players = []
-    timeout = aiohttp.ClientTimeout(total=10)
-    try:
-        async with aiohttp.ClientSession(
-            timeout=timeout,
-            auth=aiohttp.BasicAuth(
-                "username", "password")) as session:
-            for member in members:
-                request_text = f"discord_user_id={member.id}"
-                request_url = base_url + request_text
-                async with session.get(request_url, headers=headers) as resp:
-                    if resp.status != 200:
-                        players.append(None)
-                        continue
-                    result = await resp.json()
-                    player_data = result["results"][0]
-                    if 'current_mmr' not in player_data.keys():
-                        players.append(
-                            Player(member, player_data['player_name'], None))
-                        continue
-                    players.append(
-                        Player(member, player_data['player_name'], player_data['current_mmr']))
-    except:
-        print(f"Fetch for player {members[0]} has failed.", flush=True)
-    return players
+class BadPlayerDataLength(BadRatingData):
+    pass
 
 
-async def get_mmr(url, members, track_type):
-    if common.SERVER is common.Server.MK8DX:
-        return await mk8dx_mmr(url, members)
-    elif common.SERVER is common.Server.MKW:
-        return await mkw_mmr(url, members, track_type)
+class BadPlayerData(BadRatingData):
+    pass
 
 
-async def mk8dx_get_mmr_from_discord_id(url, discord_id):
-    base_url = url + '/api/player?'
-    timeout = aiohttp.ClientTimeout(total=10)
-    async with aiohttp.ClientSession(
-        timeout=timeout,
-        auth=aiohttp.BasicAuth(
-            "username", "password")) as session:
-        request_text = f"discordId={discord_id}"
-        request_url = base_url + request_text
-        async with session.get(request_url, headers=headers) as resp:
-            if resp.status != 200:
-                return "Player does not exist"
-            player_data = await resp.json()
-            if 'mmr' not in player_data.keys():
-                return "Player has no mmr"
-            return player_data['mmr']
+class Ratings:
+    def __init__(self):
+        self.first_run_complete = False
+        self.ratings = {}
 
+    async def update_ratings(self):
+        if common.SERVER is common.Server.MK8DX:
+            rating_func = self._pull_mk8dx_ratings
+        elif common.SERVER is common.Server.MKW:
+            rating_func = self._pull_mkw_ratings
+        else:
+            raise Exception("Unreachable code.")
 
-async def mkw_get_mmr_from_discord_id(url, discord_id, track_type):
-    tracks = track_type
-    base_url = url + \
-        '/api/ladderplayer.php?ladder_type=' + tracks + '&'
-    timeout = aiohttp.ClientTimeout(total=10)
-    async with aiohttp.ClientSession(
-        timeout=timeout,
-        auth=aiohttp.BasicAuth(
-            "username", "password")) as session:
-        request_text = f"discord_user_id={discord_id}"
-        request_url = base_url + request_text
-        async with session.get(request_url, headers=headers) as resp:
-            if resp.status != 200:
-                return "Player does not exist"
-            result = await resp.json()
-            player_data = result["results"][0]
-            if 'current_mmr' not in player_data.keys():
-                return "Player has no mmr"
-            return player_data['current_mmr']
+        status = await rating_func()
+        # If we failed to pull ratings, wait 60 seconds and try again
+        if not status:
+            print(f"Failed to pull ratings for {common.SERVER.name}. Waiting 60 seconds and trying again.")
+            await asyncio.sleep(60)
+            status = await rating_func()
+            # If we failed to pull ratings again, fail.
+            if not status:
+                print(f"Failed to pull ratings for {common.SERVER.name} on 2nd attempt. Skipping.")
+                return
+        self.first_run_complete = True
 
+    async def _pull_mk8dx_ratings(self) -> bool:
+        url = f"""{common.CONFIG["url"]}/api/player/list"""
+        return await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mk8dx_response)
 
-async def get_mmr_from_discord_id(url, discord_id, track_type):
-    if common.SERVER is common.Server.MK8DX:
-        return await mk8dx_get_mmr_from_discord_id(url, discord_id)
-    elif common.SERVER is common.Server.MKW:
-        return await mkw_get_mmr_from_discord_id(url, discord_id, track_type)
+    async def _pull_mkw_ratings(self) -> bool:
+        url = f"""{common.CONFIG["url"]}/api/ladderplayer.php?ladder_type={common.CONFIG["track_type"]}&all&fields=discord_user_id,current_mmr,player_name"""
+        return await Ratings._pull_ratings(url, self._parse_mkw_ratings, self._validate_mkw_response)
+
+    @staticmethod
+    async def _pull_ratings(url, parser, validator) -> bool:
+        """Returns True if the ratings were pulled and successfully stored."""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    print(f"{common.SERVER.name} returned status {response.status}")
+                    return False
+                data = await response.json()
+                try:
+                    validator(data)
+                except RatingRequestFailure:
+                    print(f"{common.SERVER.name}'s data from API was formatted incorrectly.")
+                    print(traceback.format_exc())
+                    return False
+                parser(data)
+                return True
+        return False  # Didn't run request successfully, so we return it was a failure
+
+    def _validate_mk8dx_response(self, results: dict):
+        if type(results) is not dict:
+            raise BadRatingData("Response is not a dictionary")
+        all_players = results.get("players")
+        if all_players is None:
+            raise BadRatingData("Key word 'players' not found in JSON response.")
+        #
+        required_player_amount = 10000
+        if len(all_players) < required_player_amount:
+            raise BadPlayerDataLength(
+                f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response.""")
+
+        strongly_required_fields = [("name", str)]
+        weakly_required_fields = [("discordId", str), ("mmr", int)]
+        for player in all_players:
+            # Ensure all strongly required fields are in the player JSON and that the type is correct
+            for strongly_req_field_name, strongly_req_field_type in strongly_required_fields:
+                if strongly_req_field_name not in player:
+                    raise BadPlayerData(
+                        f"Missing required field '{strongly_req_field_name}' in the following player: {player}")
+                field_data = player[strongly_req_field_name]
+                if type(field_data) is not strongly_req_field_type:
+                    raise BadPlayerData(
+                        f"For field '{strongly_req_field_name}', expected type '{strongly_req_field_type}' received {type(field_data)} for player: {player}")
+            # Ensure that if the weakly required field is in the JSON, the type is correct
+            for weakly_req_field_name, weakly_req_field_type in weakly_required_fields:
+                if weakly_req_field_name in player:
+                    field_data = player[weakly_req_field_name]
+                    if type(field_data) is not weakly_req_field_type:
+                        raise BadPlayerData(
+                            f"For field '{weakly_req_field_name}', expected type '{weakly_req_field_type}' received {type(field_data)} for player: {player}")
+
+    def _parse_mk8dx_ratings(self, results: dict):
+        self.ratings.clear()
+        all_players = results.get("players")
+        for player in all_players:
+            discord_id = player.get("discordId")
+            if discord_id is None:
+                continue
+            rating = common.CONFIG["PLACEMENT_PLAYER_MMR"] if player.get("mmr") is None else player.get("mmr")
+            self.ratings[discord_id] = (rating, player["name"])
+
+    def _validate_mkw_response(self, results: dict):
+        if type(results) is not dict:
+            raise BadRatingData("Response is not a dictionary")
+        mkw_status = results.get("status")
+        if mkw_status is None:
+            raise BadRatingData("Key word 'status' not found in JSON response.")
+        if mkw_status != "success":
+            raise BadRatingData(f"'status' had value of {mkw_status} in JSON response.")
+
+        all_players = results.get("results")
+        if all_players is None:
+            raise BadRatingData("Key word 'results' not found in JSON response.")
+        #
+        required_player_amount = 1000
+        if len(all_players) < required_player_amount:
+            raise BadPlayerDataLength(
+                f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response.""")
+
+        for player in all_players:
+            if "player_name" not in player:
+                raise BadPlayerData(f"Missing required field 'player_name' in the following player: {player}")
+            if "discord_user_id" not in player:
+                raise BadPlayerData(f"Missing required field 'discord_user_id' in the following player: {player}")
+            if "current_mmr" not in player:
+                raise BadPlayerData(f"Missing required field 'current_mmr' in the following player: {player}")
+            player_name = player.get("player_name")
+            discord_user_id = player.get("discord_user_id")
+            current_mmr = player.get("current_mmr")
+            if not (type(discord_user_id) is str or discord_user_id is None):
+                raise BadPlayerData(
+                    f"For field 'discord_user_id', expected type 'str' or None, received {type(discord_user_id)} for player: {player}")
+            if type(current_mmr) is not int:
+                raise BadPlayerData(
+                    f"For field 'current_mmr', expected type 'int' received {type(current_mmr)} for player: {player}")
+            if type(player_name) is not str:
+                raise BadPlayerData(
+                    f"For field 'player_name', expected type 'str' received {type(player_name)} for player: {player}")
+
+    def _parse_mkw_ratings(self, results: dict):
+        self.ratings.clear()
+        all_players = results.get("results")
+        for player in all_players:
+            discord_user_id = player.get("discord_user_id")
+            if discord_user_id is not None:
+                self.ratings[player["discord_user_id"]] = (player["current_mmr"], player["player_name"])
+
+    def get_rating_from_discord_id(self, discord_id: int | str) -> int | None:
+        discord_id = str(discord_id)
+        if not self.first_run_complete:
+            raise RatingsNotReady("Ratings not pulled yet.")
+        if discord_id in self.ratings:
+            return self.ratings.get(discord_id)[0]
+        # Make clear that we intend to return None by explicitly doing so
+        else:
+            return None
+
+    def get_rating(self, members: List[discord.User | discord.Member]) -> List[Player]:
+        if not self.first_run_complete:
+            raise RatingsNotReady("Ratings not pulled yet.")
+        all_players = []
+        for member in members:
+            member_id = str(member.id)  # Are discord member IDs already strings...?
+            if member_id not in self.ratings:
+                continue
+            rating, name = self.ratings[member_id]
+            all_players.append(Player(member, name, rating))
+        return all_players
