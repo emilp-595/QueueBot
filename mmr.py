@@ -64,6 +64,7 @@ class Ratings:
 
     @staticmethod
     async def _pull_ratings(url, parser, validator) -> bool:
+        """Returns True if the ratings were pulled and successfully stored."""
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status != 200:
