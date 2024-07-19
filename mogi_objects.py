@@ -472,11 +472,7 @@ class JoinView(View):
             await interaction.followup.send(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
             return
-        # Need a 2nd check to control the race condition introduced by "await self.get_mmr"
-        if interaction.user.id in self.room.get_player_list() + self.room.subs:
-            await interaction.followup.send(
-                "You are already in this room.", ephemeral=True)
-            return
+
         mmr_high = 999999 if self.room.room_num == 1 else self.room.mmr_high
         mmr_low = -999999 if self.room.room_num == self.bottom_room_num else self.room.mmr_low
         if isinstance(user_mmr, int) and mmr_high + self.sub_range_mmr_allowance > user_mmr > mmr_low - self.sub_range_mmr_allowance:
