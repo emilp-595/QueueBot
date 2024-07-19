@@ -457,19 +457,18 @@ class JoinView(View):
 
     @discord.ui.button(label="Join Room")
     async def button_callback(self, interaction: discord.Interaction, button):
-        await interaction.response.defer()
         if self.is_restricted is not None and self.is_restricted(interaction.user):
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "Players with the muted or restricted role cannot use the sub button.", ephemeral=True)
             return
         if interaction.user.id in self.room.get_player_list() + self.room.subs:
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "You are already in this room.", ephemeral=True)
             return
         try:
             user_mmr = self.get_rating_from_discord_id(interaction.user.id)
         except:
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
             return
 
@@ -478,11 +477,11 @@ class JoinView(View):
         if isinstance(user_mmr, int) and mmr_high + self.sub_range_mmr_allowance > user_mmr > mmr_low - self.sub_range_mmr_allowance:
             self.room.subs.append(interaction.user.id)
             button.disabled = True
-            await interaction.followup.edit_message(interaction.message.id, view=self)
+            await interaction.response.edit_message(interaction.message.id, view=self)
             mention = interaction.user.mention
             await self.room.thread.send(f"{mention} has joined the room.")
         else:
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "You do not meet room requirements", ephemeral=True)
 
 
