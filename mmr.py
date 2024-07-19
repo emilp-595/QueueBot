@@ -93,22 +93,35 @@ class Ratings:
             raise BadPlayerDataLength(
                 f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response.""")
 
-        required_fields = [("name", str), ("discordId", str), ("mmr", int)]
+        strongly_required_fields = [("name", str)]
+        weakly_required_fields = [("discordId", str), ("mmr", int)]
         for player in all_players:
-            for required_field_name, required_field_type in required_fields:
-                if required_field_name not in player:
+            # Ensure all strongly required fields are in the player JSON and that the type is correct
+            for strongly_req_field_name, strongly_req_field_type in strongly_required_fields:
+                if strongly_req_field_name not in player:
                     raise BadPlayerData(
-                        f"Missing required field '{required_field_name}' in the following player: {player}")
-                field_data = player[required_field_name]
-                if type(field_data) is not required_field_type:
+                        f"Missing required field '{strongly_req_field_name}' in the following player: {player}")
+                field_data = player[strongly_req_field_name]
+                if type(field_data) is not strongly_req_field_type:
                     raise BadPlayerData(
-                        f"For field '{required_field_name}', expected type '{required_field_type}' received {type(field_data)} for player: {player}")
+                        f"For field '{strongly_req_field_name}', expected type '{strongly_req_field_type}' received {type(field_data)} for player: {player}")
+            # Ensure that if the weakly required field is in the JSON, the type is correct
+            for weakly_req_field_name, weakly_req_field_type in strongly_required_fields:
+                if weakly_req_field_name in player:
+                    field_data = player[weakly_req_field_name]
+                    if type(field_data) is not weakly_req_field_type:
+                        raise BadPlayerData(
+                            f"For field '{weakly_req_field_name}', expected type '{weakly_req_field_type}' received {type(field_data)} for player: {player}")
 
     def _parse_mk8dx_ratings(self, results: dict):
         self.ratings.clear()
         all_players = results.get("players")
         for player in all_players:
-            self.ratings[player["discordId"]] = (player["mmr"], player["name"])
+            discord_id = player.get("discordID")
+            if discord_id is None:
+                continue
+            rating = common.CONFIG["PLACEMENT_PLAYER_MMR"] if player.get("mmr") is None else player.get("mmr")
+            self.ratings[discord_id] = (rating, player["name"])
 
     def _validate_mkw_response(self, results: dict):
         if type(results) is not dict:
