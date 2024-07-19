@@ -106,7 +106,7 @@ class Ratings:
                     raise BadPlayerData(
                         f"For field '{strongly_req_field_name}', expected type '{strongly_req_field_type}' received {type(field_data)} for player: {player}")
             # Ensure that if the weakly required field is in the JSON, the type is correct
-            for weakly_req_field_name, weakly_req_field_type in strongly_required_fields:
+            for weakly_req_field_name, weakly_req_field_type in weakly_required_fields:
                 if weakly_req_field_name in player:
                     field_data = player[weakly_req_field_name]
                     if type(field_data) is not weakly_req_field_type:
@@ -117,7 +117,7 @@ class Ratings:
         self.ratings.clear()
         all_players = results.get("players")
         for player in all_players:
-            discord_id = player.get("discordID")
+            discord_id = player.get("discordId")
             if discord_id is None:
                 continue
             rating = common.CONFIG["PLACEMENT_PLAYER_MMR"] if player.get("mmr") is None else player.get("mmr")

@@ -323,6 +323,7 @@ class SquadQueue(commands.Cog):
             # FIRST look up the player - sometimes MK8DX bots add placement role to non placement players,
             # so this will check the leaderboard first
             players = self.ratings.get_rating([member])
+            print(players)
 
             msg = ""
             # If the no rating was found...
