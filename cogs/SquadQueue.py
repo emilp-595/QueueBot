@@ -87,7 +87,7 @@ class SquadQueue(commands.Cog):
 
         self.HISTORY_CHANNEL = None
 
-        self.GENERAL_CHANNEL = None
+        self.GENERAL_CHANNEL: discord.TextChannel = None
 
         self.URL = bot.config["url"]
 
