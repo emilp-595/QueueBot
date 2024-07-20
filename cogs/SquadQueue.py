@@ -1068,10 +1068,21 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             elif mogi.start_time <= cur_time and mogi.gathering:
                 # check if there are an even amount of teams since we are past the queue time
                 num_leftover_teams = mogi.count_registered() % (12 // mogi.max_player_per_team)
+                # If have en even number of players...
                 if num_leftover_teams == 0:
-                    mogi.gathering = False
-                    self.cur_extension_message = None
-                    return True
+                    # ...and none of the rooms will be cancelled, close the queue and begin
+                    if not mogi.any_room_cancelled(self.allowed_players_check):
+                        mogi.gathering = False
+                        self.cur_extension_message = None
+                        return True
+                    # ...any of the rooms will be cancelled, set the error message
+                    else:
+                        self.last_extension_message_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+                        minutes_left = (force_start_time - cur_time).seconds // 60
+                        self.cur_extension_message = f"One or more of the rooms will be cancelled, so the extension " \
+                                                     f"will continue. Starting in {minutes_left + 1} minute(s) " \
+                                                     f"regardless."
+
                 else:
                     cur_extension_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
                     # At this point, we're in the extension time. So if the extension timestamp is in a different
