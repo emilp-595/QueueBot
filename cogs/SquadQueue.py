@@ -66,6 +66,10 @@ class SquadQueue(commands.Cog):
 
         self.sq_times = []
 
+        # Parameters for tracking if we should send an extension message or not
+        self.last_extension_message_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        self.cur_extension_message = None
+
         self._scheduler_task = self.sqscheduler.start()
         self._msgqueue_task = self.send_queued_messages.start()
         self._list_task = self.list_task.start()
