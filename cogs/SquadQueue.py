@@ -783,7 +783,7 @@ class SquadQueue(commands.Cog):
     async def schedule_sq_times(self, ctx, timestamps: commands.Greedy[int]):
         """Saves a list of sq times to skip over.  Input a list of unix utc timestamps.  Staff use only."""
         if not self.is_staff(ctx.author) and not await self.bot.is_owner(ctx.author):
-            self.queue_or_send(
+            await self.queue_or_send(
                 ctx, "You do not have permission to use this command.")
             return
 
