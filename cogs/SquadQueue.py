@@ -185,7 +185,7 @@ class SquadQueue(commands.Cog):
         print("Ready!", flush=True)
         self.refresh_ratings.start()
         self.refresh_helper_roles.start()
-        self.check_room_channels_task.start()
+        self.check_room_threads_task.start()
 
     async def lockdown(self, channel: discord.TextChannel):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
@@ -910,7 +910,7 @@ class SquadQueue(commands.Cog):
 
     # make thread channels while the event is gathering instead of at the end,
     # since discord only allows 50 thread channels to be created per 5 minutes.
-    async def check_room_channels(self, mogi):
+    async def check_room_threads(self, mogi: Mogi):
         num_created_rooms = len(mogi.rooms)
         for i in range(num_created_rooms, mogi.max_possible_rooms):
             display_time = mogi.display_time
@@ -959,7 +959,7 @@ class SquadQueue(commands.Cog):
         mogi.making_rooms_run = True
         mogi.gathering = False
 
-        await self.check_room_channels(mogi)
+        await self.check_room_threads(mogi)
 
         if was_gathering:
             await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
@@ -1216,10 +1216,10 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             print(traceback.format_exc())
 
     @tasks.loop(minutes=3)
-    async def check_room_channels_task(self):
+    async def check_room_threads_task(self):
         try:
             if self.ongoing_event is not None:
-                await self.check_room_channels(self.ongoing_event)
+                await self.check_room_threads(self.ongoing_event)
         except:
             print(traceback.format_exc())
 
