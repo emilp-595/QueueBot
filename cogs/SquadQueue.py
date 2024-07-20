@@ -939,6 +939,8 @@ class SquadQueue(commands.Cog):
             return
         if mogi.making_rooms_run and started_automatically:
             return
+
+        await self.lockdown(mogi.mogi_channel)
         if mogi.max_possible_rooms == 0:
             self.ongoing_event = None
             await mogi.mogi_channel.send(f"Not enough players to fill a single room! This mogi will be cancelled.")
@@ -950,7 +952,6 @@ class SquadQueue(commands.Cog):
 
         await self.check_room_channels(mogi)
 
-        await self.lockdown(mogi.mogi_channel)
         if was_gathering:
             await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
 
