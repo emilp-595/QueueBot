@@ -136,6 +136,10 @@ class SquadQueue(commands.Cog):
                                                  tzinfo=timezone.utc) + timedelta(
             minutes=bot.config["FIRST_EVENT_TIME"])
 
+        # If we're testing, set the time to the current time so we start a new event immediately
+        if not self.is_production:
+            self.FIRST_EVENT_TIME = datetime.now(timezone.utc)
+
         with open('./timezones.json', 'r') as cjson:
             self.timezones = json.load(cjson)
 
