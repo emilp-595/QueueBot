@@ -219,13 +219,17 @@ class Mogi:
 
     def is_room_thread(self, channel_id: int):
         for room in self.rooms:
-            if room.thread.id == channel_id:
+            if room is None or room.channel is None:
+                continue
+            if room.channel.id == channel_id:
                 return True
         return False
 
     def get_room_from_thread(self, channel_id: int):
         for room in self.rooms:
-            if room.thread.id == channel_id:
+            if room is None or room.channel is None:
+                continue
+            if room.channel.id == channel_id:
                 return room
         return None
 
