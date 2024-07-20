@@ -552,7 +552,7 @@ class SquadQueue(commands.Cog):
         if mogi is None:
             return
         room = discord.utils.find(
-            lambda r: r.thread.id == message.channel.id, mogi.rooms)
+            lambda r: r.channel.id == message.channel.id, mogi.rooms)
         if room is None or not room.teams:
             return
         team = discord.utils.find(
@@ -583,7 +583,7 @@ class SquadQueue(commands.Cog):
             return
 
         room = discord.utils.find(
-            lambda room: room.thread.id == interaction.channel_id, mogi.rooms)
+            lambda room: room.channel.id == interaction.channel_id, mogi.rooms)
         if not room:
             await interaction.response.send_message(f"The Thread object cannot be found.", ephemeral=True)
             return
@@ -901,7 +901,7 @@ class SquadQueue(commands.Cog):
                             f"Skipping room {index} in function write_history.", flush=True)
                         continue
                     msg = room.view.header_text
-                    msg += f"{room.thread.jump_url}\n"
+                    msg += f"{room.channel.jump_url}\n"
                     msg += room.view.teams_text
                     msg += "ㅤ"
                     await history_channel.send(msg)
@@ -1006,11 +1006,11 @@ Vote for format FFA, 2v2, 3v3, 4v4.
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
                 try:
-                    await curr_room.thread.send(room_msg)
                     view = VoteView(room_players, curr_room.thread,
                                     mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME, self.TIER_INFO)
+                    await curr_room.channel.send(room_msg)
                     curr_room.view = view
-                    await curr_room.thread.send(view=view)
+                    await curr_room.channel.send(view=view)
                 except discord.DiscordException:
                     err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
                     err_msg += player_mentions + extra_member_mentions

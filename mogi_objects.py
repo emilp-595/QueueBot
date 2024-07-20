@@ -244,10 +244,10 @@ class Mogi:
 
 
 class Room:
-    def __init__(self, teams, room_num: int, thread: discord.Thread):
+    def __init__(self, teams, room_num: int, channel: discord.Thread | discord.TextChannel, tier_info):
         self.teams: List["Team"] = teams
         self.room_num = room_num
-        self.thread = thread
+        self.channel = channel
         self.view = None
         self.finished = False
         self.host_list: List["Player"] = []
@@ -561,7 +561,7 @@ class JoinView(View):
             button.disabled = True
             await interaction.response.edit_message(view=self)
             mention = interaction.user.mention
-            await self.room.thread.send(f"{mention} has joined the room.")
+            await self.room.channel.send(f"{mention} has joined the room.")
         else:
             await interaction.response.send_message(
                 "You do not meet room requirements", ephemeral=True)
