@@ -588,13 +588,13 @@ class SquadQueue(commands.Cog):
             await interaction.response.send_message(f"The Thread object cannot be found.", ephemeral=True)
             return
 
-        format = round(12/len(room.teams))
+        format_ = round(12/len(room.teams))
 
         msg = f"!submit {format_} {room.tier}\n"
         for team in room.teams:
             for player in team.players:
                 msg += f"{player.lounge_name} {player.score}\n"
-            if format != 1:
+            if format_ != 1:
                 msg += "\n"
         await interaction.response.send_message(msg)
 
