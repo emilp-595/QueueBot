@@ -99,15 +99,17 @@ class Mogi:
                 break
             cur_check_list.append(late_players.pop(0))
         # Even after checking the late players, we did not find
-        return [], Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY
+        return best_collection, Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY
 
     def _mk8dx_generate_final_list(self) -> List[Player]:
         confirmed_players = self.players_on_confirmed_teams()
         return confirmed_players[0:self.players_per_room * self.max_possible_rooms]
 
     def _mkw_generate_final_list(self, valid_players_check: Callable[[List[Player]], bool]) -> List[Player]:
-        result, _ = self._one_room_final_list_algorithm(valid_players_check)
-        return result
+        result, status = self._all_room_final_list_algorithm(valid_players_check)
+        if status is Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS:
+            return self.players_on_confirmed_teams()
+        return sorted(common.flatten(result), reverse=True)  # I do not want to formally prove that sorting here is correct
 
     def generate_proposed_list(self, valid_players_check: Callable[[List[Player]], bool] = None) -> List[Player]:
         """Algorithm that generates a proposed list of players that will play. This algorithm may differ between
