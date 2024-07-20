@@ -220,6 +220,15 @@ class SquadQueue(commands.Cog):
             if delay > 0:
                 await sendmsg.delete(delay=delay)
 
+    # Support for both server to implement their own algorithm for a player list being allowed
+    # For now, both servers have a simple rating range check that a list of players must meet,
+    # but each server could implement more complex checks on a given list of players.
+    def allowed_players_check(self, players: List[Player]):
+        if common.SERVER is common.Server.MKW:
+            return mkw_players_allowed(players, self.room_mmr_threshold)
+        elif common.SERVER is common.Server.MK8DX:
+            return mk8dx_players_allowed(players, self.room_mmr_threshold)
+
     # goes thru the msg queue for each channel and combines them
     # into as few messsages as possible, then sends them
     @tasks.loop(seconds=2)
@@ -962,30 +971,19 @@ class SquadQueue(commands.Cog):
         for r in self.bot.config["roles_for_channels"]:
             extra_members.append(mogi.mogi_channel.guild.get_role(r))
 
-        # Support for both server to implement their own algorithm for a player list being allowed
-        # For now, both servers have a simple rating range check that a list of players must meet,
-        # but each server could implement more complex checks on a given list of players.
-        if common.SERVER is common.Server.MKW:
-            def allowed_players_check(players):
-                return mkw_players_allowed(players, self.room_mmr_threshold)
-        elif common.SERVER is common.Server.MK8DX:
-            def allowed_players_check(players):
-                return mk8dx_players_allowed(players, self.room_mmr_threshold)
-
         all_confirmed_players = mogi.players_on_confirmed_teams()
         first_late_player_index = (
             mogi.num_players//mogi.players_per_room) * mogi.players_per_room
         regular_player_list = all_confirmed_players[:first_late_player_index]
         late_player_list = all_confirmed_players[first_late_player_index:]
-        proposed_list = sorted(mogi.generate_proposed_list(
-            allowed_players_check), reverse=True)
+        proposed_list = mogi.generate_proposed_list(self.allowed_players_check)
         await mogi.populate_host_fcs()
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
             msg = f"`Room {room_number} - Player List`\n"
             for player_num, player in enumerate(room_players, 1):
                 added_str = ": **Added from late players**" if player in late_player_list else ""
                 msg += f"""`{player_num}.` {player.lounge_name} ({player.mmr} MMR){added_str}\n"""
-            if not allowed_players_check(room_players):
+            if not self.allowed_players_check(room_players):
                 msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
                 curr_room = mogi.rooms[room_number - 1]
