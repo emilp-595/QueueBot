@@ -11,6 +11,30 @@ from typing import List, Tuple, Callable
 import host_fcs
 
 
+class PrepFailure(Exception):
+    pass
+
+
+class WrongChannelType(TypeError, PrepFailure):
+    pass
+
+
+class RoleFailure(PrepFailure):
+    pass
+
+
+class RoleAddFailure(RoleFailure):
+    pass
+
+
+class RoleNotFound(RoleFailure):
+    pass
+
+
+class NoFreeChannels(PrepFailure):
+    pass
+
+
 def average(list_: List[int | float]) -> float:
     return sum(list_) / len(list_)
 
@@ -253,6 +277,8 @@ class Room:
         self.finished = False
         self.host_list: List["Player"] = []
         self.subs: List[int] = []
+        self.tier_info = tier_info
+        self.room_role = None
 
     @property
     def tier(self) -> str:
@@ -307,6 +333,76 @@ class Room:
         if common.SERVER is common.Server.MKW and self.host_list[0].host_fc is not None:
             result += f"\n**Host ({self.host_list[0].member.display_name}) Friend Code: {self.host_list[0].host_fc}**"
         return result
+
+    def check_player(self, member):
+        if self.teams is None:
+            return None
+        for team in self.teams:
+            if team.has_player(member):
+                return team
+        return None
+
+    async def assign_member_room_role(self, member: discord.Member):
+        if self.room_role is None:
+            raise RoleNotFound(f"Could not find role for tier {self.tier}")
+        try:
+            await member.add_roles(self.room_role)
+        except:
+            raise RoleAddFailure(f"Failed to add role {self.room_role.name} to {member}\n")
+
+    async def assign_roles(self):
+        role_add_fail_text = ""
+        for player in self.players:
+            try:
+                await self.assign_member_room_role(player.member)
+            except RoleAddFailure:
+                role_add_fail_text += f"Failed to add role {self.room_role.name} to {player.member}\n"
+                print(traceback.format_exc())
+
+        if role_add_fail_text != "":
+            await self.channel.send(role_add_fail_text)
+            raise RoleAddFailure(role_add_fail_text)
+
+    async def prepare_room_channel(self, guild: discord.Guild, all_events: List[Mogi | None]):
+        if common.CONFIG["USE_THREADS"]:
+            return
+        """
+        "1": {
+            "tier_role_id": 1114695238716497980,
+            "channel_ids": [
+                1264120088651628596,
+                1264120865881325629
+            ]
+        }
+        """
+        tier_data = common.CONFIG["TIER_CHANNELS"][self.tier]
+
+        all_tier_channel_ids = set(tier_data["channel_ids"])
+        in_use_tier_channel_ids = set()
+        for event in all_events:
+            if event is None:
+                continue
+            for tier_channel_id in all_tier_channel_ids:
+                if event.channel_id_in_rooms(tier_channel_id):
+                    in_use_tier_channel_ids.add(tier_channel_id)
+
+        free_channel_ids = all_tier_channel_ids - in_use_tier_channel_ids
+        if len(free_channel_ids) == 0:
+            raise NoFreeChannels(f"No free channels for tier {self.tier}")
+
+        channel_id = free_channel_ids.pop()
+        found_channel = guild.get_channel(channel_id)
+        if not isinstance(found_channel, discord.TextChannel):
+            raise WrongChannelType(f"For tier {self.tier}, channel id {channel_id} is of type {type(found_channel)}, expected discord.TextChannel")
+
+        self.channel = found_channel
+
+        tier_role_id = tier_data["tier_role_id"]
+        self.room_role = guild.get_role(tier_role_id)
+        if self.room_role is None:
+            raise RoleNotFound(f"Could not find role for role id {tier_role_id} for tier {self.tier}")
+
+        await self.assign_roles()
 
 
 class Team:
@@ -392,7 +488,6 @@ class VoteView(View):
         self.teams_text = ""
         self.found_winner = False
         self.penalty_time = penalty_time
-        self.tier_info = tier_info
         self.votes = {"FFA": [],
                       "2v2": [],
                       "3v3": [],
@@ -559,6 +654,10 @@ class JoinView(View):
             self.room.subs.append(interaction.user.id)
             button.disabled = True
             await interaction.response.edit_message(view=self)
+            try:
+                await self.room.assign_member_room_role(interaction.user)
+            except RoleAddFailure as e:
+                self.room.channel.send(str(e))
             mention = interaction.user.mention
             await self.room.channel.send(f"{mention} has joined the room.")
         else:

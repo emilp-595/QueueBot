@@ -56,6 +56,8 @@ class SquadQueue(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
 
+        self.bot_startup_time = datetime.now(timezone.utc)
+
         self.is_production = bot.config["is_production"]
 
         self.next_event: Mogi = None
@@ -186,6 +188,8 @@ class SquadQueue(commands.Cog):
         self.refresh_ratings.start()
         self.refresh_helper_roles.start()
         self.check_room_threads_task.start()
+        if not common.CONFIG["USE_THREADS"]:
+            self.maintain_roles.start()
 
     async def lockdown(self, channel: discord.TextChannel):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
@@ -1009,6 +1013,7 @@ Vote for format FFA, 2v2, 3v3, 4v4.
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
                 try:
+                    await curr_room.prepare_room_channel(self.GUILD, all_events=([self.ongoing_event] + self.old_events))
                     await curr_room.channel.send(room_msg)
                     view = VoteView(room_players, curr_room.channel,
                                     mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME)
@@ -1019,6 +1024,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                     err_msg += player_mentions + extra_member_mentions
                     msg += err_msg
                     print(traceback.format_exc())
+                except mogi_objects.RoleAddFailure:
+                    pass
+                except mogi_objects.PrepFailure as e:
+                    await mogi.mogi_channel.send(f"ERROR: **{e}**")
+
 
             try:
                 await mogi.mogi_channel.send(msg)
@@ -1215,6 +1225,47 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 print(
                     f"Deleting {mogi.start_time} Mogi at {curr_time}", flush=True)
                 self.old_events.remove(mogi)
+        except Exception as e:
+            print(traceback.format_exc())
+
+    @tasks.loop(minutes=1)
+    async def maintain_roles(self):
+        """Removes roles from people who are no longer supposed to see tier channels."""
+        try:
+            should_start_role_removal = (self.bot_startup_time + timedelta(minutes=self.MOGI_LIFETIME)) <= datetime.now(timezone.utc)
+            if not self.is_production:
+                should_start_role_removal = True
+            print("Removing roles.")
+            if should_start_role_removal:
+                members = [member async for member in self.GUILD.fetch_members(limit=None)]
+                tier_roles = []
+                tier_role_data = common.CONFIG["TIER_CHANNELS"]
+                for tier, tier_data in tier_role_data.items():
+                    tier_roles.append(self.GUILD.get_role(tier_data["tier_role_id"]))
+
+                all_mogis = []
+                if self.ongoing_event is not None:
+                    all_mogis.append(self.ongoing_event)
+                all_mogis.extend([ev for ev in self.old_events if ev is not None])
+                all_rooms = []
+                for mogi in all_mogis:
+                    for room in mogi.rooms:
+                        if room is not None and room.room_role is not None:
+                            all_rooms.append(room)
+                for member in members:
+                    should_have_roles = set()
+                    for room in all_rooms:
+                        if room.check_player(member) is not None:
+                            should_have_roles.add(room.room_role)
+                    should_not_have_roles = set(tier_roles) - should_have_roles
+                    member_roles = set(member.roles)
+                    roles_to_remove = should_not_have_roles.intersection(member_roles)
+                    if len(roles_to_remove) > 0:
+                        try:
+                            await member.remove_roles(*roles_to_remove)
+                        except:
+                            print(traceback.format_exc())
+
         except Exception as e:
             print(traceback.format_exc())
 
