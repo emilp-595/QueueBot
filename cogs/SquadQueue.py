@@ -1309,7 +1309,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(433353529655296011)
         for i, rating in enumerate(ratings, 1):
-            if rating.isdecimal():
+            if common.is_int(rating):
                 player = Player(member, f"{member.name} {i}", int(
                     rating), confirmed=True)
                 mogi.teams.append(Team([player]))
