@@ -19,6 +19,7 @@ class Mogi:
     ALGORITHM_STATUS_2_OR_MORE_ROOMS = 2
     ALGORITHM_STATUS_SUCCESS_FOUND = 3
     ALGORITHM_STATUS_SUCCESS_EMPTY = 4
+    ALGORITHM_STATUS_SUCCESS_SOME_INVALID = 5
 
     def __init__(self, sq_id: int, max_players_per_team: int, players_per_room: int, mogi_channel: discord.TextChannel,
                  is_automated=False, start_time=None, display_time=None, additional_extension_minutes=0):
@@ -122,6 +123,22 @@ class Mogi:
             return self._mkw_generate_final_list(valid_players_check)
         else:
             raise ValueError(f"Unknown server in config: {common.Server}")
+
+    def _count_cancelled(self, player_list: List[Player], valid_players_check: Callable[[List[Player]], bool] = None) -> int:
+        """Using the provided valid players check function and player list, returns the number of rooms that would be cancelled."""
+        if valid_players_check is None:
+            return 0
+        return sum(1 for room_players in common.divide_chunks(player_list, self.players_per_room) if not valid_players_check(room_players))
+
+    def _any_cancelled(self, player_list: List[Player], valid_players_check: Callable[[List[Player]], bool] = None) -> bool:
+        return self._count_cancelled(player_list, valid_players_check) > 0
+
+    def any_room_cancelled(self, valid_players_check: Callable[[List[Player]], bool] = None) -> bool:
+        """Using the provided valid players check function, returns if any of the rooms will be cancelled."""
+        if valid_players_check is None:
+            return False
+        proposed_list = self.generate_proposed_list(valid_players_check)
+        return self._any_cancelled(proposed_list, valid_players_check)
 
     def check_player(self, member):
         for team in self.teams:
