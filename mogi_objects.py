@@ -254,6 +254,13 @@ class Room:
         self.subs: List[int] = []
 
     @property
+    def tier(self) -> str:
+        if common.SERVER is common.Server.MK8DX:
+            return get_tier_mk8dx(round(self.avg_mmr) - 500)
+        if common.SERVER is common.Server.MKW:
+            return str(get_tier_mkw(self.avg_mmr, self.tier_info))
+
+    @property
     def mmr_high(self) -> int:
         if self.teams is None:
             return None
@@ -374,10 +381,10 @@ class Player:
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int, tier_info):
+    def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int):
         super().__init__()
         self.players = players
-        self.thread: discord.Thread = thread
+        self.room_channel: discord.Thread | discord.TextChannel = thread
         self.mogi = mogi
         self.room = room
         self.header_text = ""
@@ -421,13 +428,9 @@ class VoteView(View):
             msg += f"5) 6v6 - {len(self.votes['6v6'])}\n"
         msg += f"Winner: {format_[1]}\n\n"
 
-        room_mmr = round(sum([p.mmr for p in self.players]) / 12)
-        room.mmr_average = room_mmr
         self.header_text = ""
-        if common.SERVER is common.Server.MKW:
-            self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - T{get_tier(room_mmr, self.tier_info)}** "
-        elif common.SERVER is common.Server.MK8DX:
-            self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - Tier {get_tier_mk8dx(room_mmr - 500)}** "
+        tier_text = "Tier " if common.SERVER is common.Server.MK8DX else "T"
+        self.header_text += f"**Room {room.room_num} MMR: {room.avg_mmr} - {tier_text}{room.tier}** "
         msg += self.header_text + "\n"
 
         teams = []
@@ -466,15 +469,10 @@ class VoteView(View):
         room.teams = teams
 
         self.found_winner = True
-        await self.thread.send(msg)
-        if common.SERVER is common.Server.MKW:
-            new_thread_name = self.thread.name + \
-                f" - T{get_tier(room_mmr, self.tier_info)}"
-            await self.thread.edit(name=new_thread_name)
-        elif common.SERVER is common.Server.MK8DX:
-            new_thread_name = self.thread.name + \
-                f" - Tier {get_tier_mk8dx(room_mmr - 500)}"
-            await self.thread.edit(name=new_thread_name)
+        await self.room_channel.send(msg)
+        if common.CONFIG["USE_THREADS"]:
+            new_thread_name = self.room_channel.name + f" - {tier_text}{room.tier}"
+            await self.room_channel.edit(name=new_thread_name)
 
     async def find_winner(self):
         if not self.found_winner:
@@ -567,7 +565,7 @@ class JoinView(View):
                 "You do not meet room requirements", ephemeral=True)
 
 
-def get_tier(mmr: int, tier_info):
+def get_tier_mkw(mmr: int, tier_info):
     for tier in tier_info:
         if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
                 tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):

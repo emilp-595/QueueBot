@@ -12,7 +12,7 @@ import json
 import common
 from common import divide_chunks
 import mmr
-from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier, get_tier_mk8dx
+from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView
 import asyncio
 from collections import defaultdict
 from typing import Dict, List, Tuple
@@ -590,7 +590,7 @@ class SquadQueue(commands.Cog):
 
         format = round(12/len(room.teams))
 
-        msg = f"!submit {format} {get_tier_mk8dx(room.mmr_average - 500)}\n"
+        msg = f"!submit {format_} {room.tier}\n"
         for team in room.teams:
             for player in team.players:
                 msg += f"{player.lounge_name} {player.score}\n"
@@ -913,6 +913,9 @@ class SquadQueue(commands.Cog):
     async def check_room_threads(self, mogi: Mogi):
         num_created_rooms = len(mogi.rooms)
         for i in range(num_created_rooms, mogi.max_possible_rooms):
+            if not common.CONFIG["USE_THREADS"]:
+                mogi.rooms.append(Room(None, i + 1, None, self.TIER_INFO))
+                continue
             display_time = mogi.display_time
             minute = display_time.minute
             if len(str(minute)) == 1:
@@ -932,7 +935,7 @@ class SquadQueue(commands.Cog):
                 err_msg = f"\nAn error has occurred while creating a room channel:\n{e}"
                 await mogi.mogi_channel.send(err_msg)
                 return
-            mogi.rooms.append(Room(None, i+1, room_channel))
+            mogi.rooms.append(Room(None, i+1, room_channel, self.TIER_INFO))
 
     @staticmethod
     async def handle_voting_and_history(mogi: Mogi, history_channel: discord.TextChannel):
@@ -1006,9 +1009,9 @@ Vote for format FFA, 2v2, 3v3, 4v4.
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
                 try:
-                    view = VoteView(room_players, curr_room.thread,
-                                    mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME, self.TIER_INFO)
                     await curr_room.channel.send(room_msg)
+                    view = VoteView(room_players, curr_room.channel,
+                                    mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME)
                     curr_room.view = view
                     await curr_room.channel.send(view=view)
                 except discord.DiscordException:
