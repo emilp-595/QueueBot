@@ -1067,8 +1067,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 return True
             elif mogi.start_time <= cur_time and mogi.gathering:
                 # check if there are an even amount of teams since we are past the queue time
-                num_leftover_teams = mogi.count_registered() % int(
-                    (12 / mogi.max_player_per_team))
+                num_leftover_teams = mogi.count_registered() % (12 // mogi.max_player_per_team)
                 if num_leftover_teams == 0:
                     mogi.gathering = False
                     self.cur_extension_message = None
