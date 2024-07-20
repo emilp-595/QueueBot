@@ -425,12 +425,12 @@ class SquadQueue(commands.Cog):
         bottom_room_num = 1
         mogi = self.ongoing_event
         if mogi is not None:
-            if mogi.is_room_thread(interaction.channel_id):
+            if mogi.channel_id_in_rooms(interaction.channel_id):
                 room = mogi.get_room_from_channel_id(interaction.channel_id)
                 bottom_room_num = len(mogi.rooms)
                 is_room_thread = True
         for old_mogi in self.old_events:
-            if old_mogi.is_room_thread(interaction.channel.id):
+            if old_mogi.channel_id_in_rooms(interaction.channel.id):
                 room = old_mogi.get_room_from_channel_id(interaction.channel.id)
                 bottom_room_num = len(old_mogi.rooms)
                 is_room_thread = True
@@ -544,10 +544,10 @@ class SquadQueue(commands.Cog):
             return
         mogi = None
         if self.ongoing_event is not None:
-            mogi = self.ongoing_event if self.ongoing_event.is_room_thread(
+            mogi = self.ongoing_event if self.ongoing_event.channel_id_in_rooms(
                 message.channel.id) else None
         if mogi is None:
-            mogi = discord.utils.find(lambda m: m.is_room_thread(
+            mogi = discord.utils.find(lambda m: m.channel_id_in_rooms(
                 message.channel.id), self.old_events)
         if mogi is None:
             return
@@ -576,7 +576,7 @@ class SquadQueue(commands.Cog):
             await interaction.response.send_message(f"Cannot use this command here.", ephemeral=True)
             return
 
-        mogi = discord.utils.find(lambda mogi: mogi.is_room_thread(
+        mogi = discord.utils.find(lambda mogi: mogi.channel_id_in_rooms(
             interaction.channel_id), self.old_events)
         if not mogi:
             await interaction.response.send_message(f"The Mogi object cannot be found.", ephemeral=True)

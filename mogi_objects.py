@@ -217,7 +217,7 @@ class Mogi:
     def players_on_confirmed_teams(self) -> List[Player]:
         return flatten([team.players for team in self.confirmed_teams()])
 
-    def is_room_thread(self, channel_id: int):
+    def channel_id_in_rooms(self, channel_id: int):
         for room in self.rooms:
             if room is None or room.channel is None:
                 continue
