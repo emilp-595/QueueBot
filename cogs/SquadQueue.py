@@ -150,9 +150,6 @@ class SquadQueue(commands.Cog):
 
         self.ratings = mmr.Ratings()
 
-        # Parameters for tracking if we should send an extension message or not
-        self.last_extension_message_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
-        self.cur_extension_message = None
 
     @commands.Cog.listener()
     async def on_ready(self):
