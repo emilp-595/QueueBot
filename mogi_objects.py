@@ -225,7 +225,7 @@ class Mogi:
                 return True
         return False
 
-    def get_room_from_thread(self, channel_id: int):
+    def get_room_from_channel_id(self, channel_id: int):
         for room in self.rooms:
             if room is None or room.channel is None:
                 continue
@@ -408,7 +408,7 @@ class VoteView(View):
                 timedelta(minutes=5)
         random.shuffle(self.players)
 
-        room = self.mogi.get_room_from_thread(self.thread.id)
+        room = self.mogi.get_room_from_channel_id(self.room_channel.id)
 
         msg = f"""**Poll Ended!**
 

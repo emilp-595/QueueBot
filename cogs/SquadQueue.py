@@ -426,12 +426,12 @@ class SquadQueue(commands.Cog):
         mogi = self.ongoing_event
         if mogi is not None:
             if mogi.is_room_thread(interaction.channel_id):
-                room = mogi.get_room_from_thread(interaction.channel_id)
+                room = mogi.get_room_from_channel_id(interaction.channel_id)
                 bottom_room_num = len(mogi.rooms)
                 is_room_thread = True
         for old_mogi in self.old_events:
             if old_mogi.is_room_thread(interaction.channel.id):
-                room = old_mogi.get_room_from_thread(interaction.channel.id)
+                room = old_mogi.get_room_from_channel_id(interaction.channel.id)
                 bottom_room_num = len(old_mogi.rooms)
                 is_room_thread = True
                 break
