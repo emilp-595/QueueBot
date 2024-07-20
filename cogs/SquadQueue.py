@@ -1317,7 +1317,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
-                member = await self.bot.fetch_user(433353529655296011)
+                member = await self.GUILD.fetch_member(1114699357179088917)
         for i, rating in enumerate(ratings, 1):
             if common.is_int(rating):
                 player = Player(member, f"{member.name} {i}", int(
