@@ -298,7 +298,8 @@ class SquadQueue(commands.Cog):
                 # is actually a user and not a member
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
-                member = await self.bot.fetch_user(82862780591378432)
+                # member = await self.bot.fetch_user(82862780591378432)
+                pass
         mogi = self.get_mogi(interaction)
         if mogi is None or not mogi.started or not mogi.gathering:
             await interaction.response.send_message("Queue has not started yet.")
