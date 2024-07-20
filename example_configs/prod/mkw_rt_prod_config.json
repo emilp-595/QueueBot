@@ -54,5 +54,15 @@
     "MOGI_LIFETIME": 120,
     "SUB_RANGE_MMR_ALLOWANCE": 700, 
     "SUB_MESSAGE_LIFETIME_SECONDS": 1200,
-    "ROOM_MMR_THRESHOLD": 8000
+    "ROOM_MMR_THRESHOLD": 8000,
+    "USE_THREADS": false,
+    "TIER_CHANNELS": {
+        "1": {
+            "tier_role_id": 1264149575070126102,
+            "channel_ids": [
+                1264120088651628596,
+                1264120865881325629
+            ]
+        }
+    }
 }
