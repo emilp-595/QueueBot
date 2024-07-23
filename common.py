@@ -32,3 +32,11 @@ def flatten(matrix: List[List[_T]]) -> List[_T]:
     for row in matrix:
         flat_list.extend(row)
     return flat_list
+
+
+def is_int(var: str) -> bool:
+    try:
+        int(var)
+        return True
+    except ValueError:
+        return False

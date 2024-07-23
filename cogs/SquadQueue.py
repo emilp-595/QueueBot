@@ -66,6 +66,10 @@ class SquadQueue(commands.Cog):
 
         self.sq_times = []
 
+        # Parameters for tracking if we should send an extension message or not
+        self.last_extension_message_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        self.cur_extension_message = None
+
         self._scheduler_task = self.sqscheduler.start()
         self._msgqueue_task = self.send_queued_messages.start()
         self._list_task = self.list_task.start()
@@ -132,6 +136,10 @@ class SquadQueue(commands.Cog):
                                                  tzinfo=timezone.utc) + timedelta(
             minutes=bot.config["FIRST_EVENT_TIME"])
 
+        # If we're testing, set the time to the current time so we start a new event immediately
+        if not self.is_production:
+            self.FIRST_EVENT_TIME = datetime.now(timezone.utc)
+
         with open('./timezones.json', 'r') as cjson:
             self.timezones = json.load(cjson)
 
@@ -142,9 +150,6 @@ class SquadQueue(commands.Cog):
 
         self.ratings = mmr.Ratings()
 
-        # Parameters for tracking if we should send an extension message or not
-        self.last_extension_message_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
-        self.cur_extension_message = None
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -214,6 +219,15 @@ class SquadQueue(commands.Cog):
             sendmsg = await ctx.send(msg)
             if delay > 0:
                 await sendmsg.delete(delay=delay)
+
+    # Support for both server to implement their own algorithm for a player list being allowed
+    # For now, both servers have a simple rating range check that a list of players must meet,
+    # but each server could implement more complex checks on a given list of players.
+    def allowed_players_check(self, players: List[Player]):
+        if common.SERVER is common.Server.MKW:
+            return mkw_players_allowed(players, self.room_mmr_threshold)
+        elif common.SERVER is common.Server.MK8DX:
+            return mk8dx_players_allowed(players, self.room_mmr_threshold)
 
     # goes thru the msg queue for each channel and combines them
     # into as few messsages as possible, then sends them
@@ -293,7 +307,8 @@ class SquadQueue(commands.Cog):
                 # is actually a user and not a member
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
-                member = await self.bot.fetch_user(82862780591378432)
+                # member = await self.bot.fetch_user(82862780591378432)
+                pass
         mogi = self.get_mogi(interaction)
         if mogi is None or not mogi.started or not mogi.gathering:
             await interaction.response.send_message("Queue has not started yet.")
@@ -933,6 +948,8 @@ class SquadQueue(commands.Cog):
             return
         if mogi.making_rooms_run and started_automatically:
             return
+
+        await self.lockdown(mogi.mogi_channel)
         if mogi.max_possible_rooms == 0:
             self.ongoing_event = None
             await mogi.mogi_channel.send(f"Not enough players to fill a single room! This mogi will be cancelled.")
@@ -944,7 +961,6 @@ class SquadQueue(commands.Cog):
 
         await self.check_room_channels(mogi)
 
-        await self.lockdown(mogi.mogi_channel)
         if was_gathering:
             await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
 
@@ -955,30 +971,19 @@ class SquadQueue(commands.Cog):
         for r in self.bot.config["roles_for_channels"]:
             extra_members.append(mogi.mogi_channel.guild.get_role(r))
 
-        # Support for both server to implement their own algorithm for a player list being allowed
-        # For now, both servers have a simple rating range check that a list of players must meet,
-        # but each server could implement more complex checks on a given list of players.
-        if common.SERVER is common.Server.MKW:
-            def allowed_players_check(players):
-                return mkw_players_allowed(players, self.room_mmr_threshold)
-        elif common.SERVER is common.Server.MK8DX:
-            def allowed_players_check(players):
-                return mk8dx_players_allowed(players, self.room_mmr_threshold)
-
         all_confirmed_players = mogi.players_on_confirmed_teams()
         first_late_player_index = (
             mogi.num_players//mogi.players_per_room) * mogi.players_per_room
         regular_player_list = all_confirmed_players[:first_late_player_index]
         late_player_list = all_confirmed_players[first_late_player_index:]
-        proposed_list = sorted(mogi.generate_proposed_list(
-            allowed_players_check), reverse=True)
+        proposed_list = mogi.generate_proposed_list(self.allowed_players_check)
         await mogi.populate_host_fcs()
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
             msg = f"`Room {room_number} - Player List`\n"
             for player_num, player in enumerate(room_players, 1):
                 added_str = ": **Added from late players**" if player in late_player_list else ""
                 msg += f"""`{player_num}.` {player.lounge_name} ({player.mmr} MMR){added_str}\n"""
-            if not allowed_players_check(room_players):
+            if not self.allowed_players_check(room_players):
                 msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
                 curr_room = mogi.rooms[room_number - 1]
@@ -1062,12 +1067,22 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 return True
             elif mogi.start_time <= cur_time and mogi.gathering:
                 # check if there are an even amount of teams since we are past the queue time
-                num_leftover_teams = mogi.count_registered() % int(
-                    (12 / mogi.max_player_per_team))
+                num_leftover_teams = mogi.count_registered() % (12 // mogi.max_player_per_team)
+                # If have en even number of players...
                 if num_leftover_teams == 0:
-                    mogi.gathering = False
-                    self.cur_extension_message = None
-                    return True
+                    # ...and none of the rooms will be cancelled, close the queue and begin
+                    if not mogi.any_room_cancelled(self.allowed_players_check):
+                        mogi.gathering = False
+                        self.cur_extension_message = None
+                        return True
+                    # ...any of the rooms will be cancelled, set the error message
+                    else:
+                        self.last_extension_message_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+                        minutes_left = (force_start_time - cur_time).seconds // 60
+                        self.cur_extension_message = f"One or more of the rooms will be cancelled, so the extension " \
+                                                     f"will continue. Starting in {minutes_left + 1} minute(s) " \
+                                                     f"regardless."
+
                 else:
                     cur_extension_timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
                     # At this point, we're in the extension time. So if the extension timestamp is in a different
@@ -1298,13 +1313,13 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 or not await self.is_gathering(ctx, mogi)):
             return
         member = ctx.author
-        if self.is_production:
+        if not self.is_production:
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(433353529655296011)
         for i, rating in enumerate(ratings, 1):
-            if rating.isdecimal():
+            if common.is_int(rating):
                 player = Player(member, f"{member.name} {i}", int(
                     rating), confirmed=True)
                 mogi.teams.append(Team([player]))
@@ -1325,7 +1340,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             return
 
         member = ctx.author
-        if self.is_production:
+        if not self.is_production:
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
