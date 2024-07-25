@@ -352,9 +352,7 @@ class Room:
             if updated_member is not None:
                 member_role_ids = {r.id for r in updated_member.roles}
                 if len(role_skip.intersection(member_role_ids)) > 0:
-                    print(f"Skipping {player.lounge_name} because has {role_skip.intersection(member_role_ids).pop()}")
                     continue
-            print(f"Assigning role to {player.lounge_name}")
             try:
                 await self.assign_member_room_role(player.member)
             except RoleAddFailure:

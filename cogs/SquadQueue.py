@@ -407,6 +407,35 @@ class SquadQueue(commands.Cog):
             if event_status_launched:
                 await self.launch_mogi()
 
+    @app_commands.command(name="host")
+    @app_commands.guild_only()
+    async def host(self, interaction: discord.Interaction):
+        """Display who is the host"""
+        room, _ = self.find_room_by_interaction(interaction)
+        if room is None:
+            await interaction.response.send_message(
+                f"More than {self.MOGI_LIFETIME} minutes have passed since mogi start, so this mogi has ended.",
+                ephemeral=True)
+            return
+        host_str = room.get_host_str()
+        if host_str == "":
+            host_str = "No one in this room queued as host! Ask someone who the host is."
+        await interaction.response.send_message(host_str)
+
+    def find_room_by_interaction(self, interaction: discord.Interaction) -> Tuple[Room | None, int]:
+        """Given an interaction, returns the Room and room number associated with the interaction.
+        Searches current and old, undeleted events. If the interaction is not associated with a Room,
+        (None, 1) is returned."""
+        all_mogis = list(self.old_events)
+        if self.ongoing_event is not None:
+            all_mogis.insert(0, self.ongoing_event)
+        for mogi in all_mogis:
+            if mogi.channel_id_in_rooms(interaction.channel.id):
+                room = mogi.get_room_from_channel_id(interaction.channel.id)
+                bottom_room_num = len(mogi.rooms)
+                return room, bottom_room_num
+        return None, 1
+
 
     @app_commands.command(name="sub")
     @app_commands.guild_only()
@@ -426,22 +455,8 @@ class SquadQueue(commands.Cog):
                 ephemeral=True)
             return
 
-        is_room_thread = False
-        room = None
-        bottom_room_num = 1
-        mogi = self.ongoing_event
-        if mogi is not None:
-            if mogi.channel_id_in_rooms(interaction.channel_id):
-                room = mogi.get_room_from_channel_id(interaction.channel_id)
-                bottom_room_num = len(mogi.rooms)
-                is_room_thread = True
-        for old_mogi in self.old_events:
-            if old_mogi.channel_id_in_rooms(interaction.channel.id):
-                room = old_mogi.get_room_from_channel_id(interaction.channel.id)
-                bottom_room_num = len(old_mogi.rooms)
-                is_room_thread = True
-                break
-        if not is_room_thread:
+        room, bottom_room_num = self.find_room_by_interaction(interaction)
+        if room is None:
             await interaction.response.send_message(
                 f"More than {self.MOGI_LIFETIME} minutes have passed since mogi start, the Mogi Object has been deleted.",
                 ephemeral=True)
