@@ -407,6 +407,21 @@ class SquadQueue(commands.Cog):
             if event_status_launched:
                 await self.launch_mogi()
 
+    @app_commands.command(name="host")
+    @app_commands.guild_only()
+    async def host(self, interaction: discord.Interaction):
+        """Display who is the host"""
+        room, _ = self.find_room_by_interaction(interaction)
+        if room is None:
+            await interaction.response.send_message(
+                f"More than {self.MOGI_LIFETIME} minutes have passed since mogi start, so this mogi has ended.",
+                ephemeral=True)
+            return
+        host_str = room.get_host_str()
+        if host_str == "":
+            host_str = "No one in this room queued as host! Ask someone who the host is."
+        await interaction.response.send_message(host_str)
+
     def find_room_by_interaction(self, interaction: discord.Interaction) -> Tuple[Room | None, int]:
         """Given an interaction, returns the Room and room number associated with the interaction.
         Searches current and old, undeleted events. If the interaction is not associated with a Room,
