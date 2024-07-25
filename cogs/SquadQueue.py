@@ -1116,9 +1116,17 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 mogi.gathering = False
                 self.cur_extension_message = None
                 return True
-            elif mogi.start_time <= cur_time and mogi.gathering:
+            num_leftover_teams = mogi.count_registered() % (12 // mogi.max_player_per_team)
+            num_needed_teams = (12 // mogi.max_player_per_team) - num_leftover_teams
+            if common.SERVER is common.Server.MKW and (force_start_time - timedelta(minutes=1)) <= cur_time and num_leftover_teams != 0:
+                if not mogi.has_checked_auto_extend:
+                    mogi.has_checked_auto_extend = True
+                    if (mogi.max_possible_rooms == 0 and num_needed_teams <= 2) or (num_needed_teams-1) <= mogi.max_possible_rooms:
+                        self.cur_extension_message = f"The extension criteria has been met, so queueing has been extended for 2 more minutes."
+                        mogi.additional_extension += timedelta(minutes=2)
+                    return False
+            if mogi.start_time <= cur_time and mogi.gathering:
                 # check if there are an even amount of teams since we are past the queue time
-                num_leftover_teams = mogi.count_registered() % (12 // mogi.max_player_per_team)
                 # If have en even number of players...
                 if num_leftover_teams == 0:
                     # ...and none of the rooms will be cancelled, close the queue and begin
@@ -1142,9 +1150,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                         self.last_extension_message_timestamp = cur_extension_timestamp
                         minutes_left = (force_start_time -
                                         cur_time).seconds // 60
-                        x_teams = int(
-                            int(12 / mogi.max_player_per_team) - num_leftover_teams)
-                        self.cur_extension_message = f"Need {x_teams} more player(s) to start immediately. Starting in {minutes_left + 1} minute(s) regardless."
+                        self.cur_extension_message = f"Need {num_needed_teams} more player(s) to start immediately. Starting in {minutes_left + 1} minute(s) regardless."
         return False
 
     async def launch_mogi(self):
