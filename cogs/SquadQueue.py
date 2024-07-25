@@ -1247,8 +1247,6 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         """Removes roles from people who are no longer supposed to see tier channels."""
         try:
             should_start_role_removal = (self.bot_startup_time + timedelta(minutes=self.MOGI_LIFETIME)) <= datetime.now(timezone.utc)
-            if not self.is_production:
-                should_start_role_removal = True
             if should_start_role_removal:
                 # Fetch all members (API call) for server to ensure role information is up-to-date
                 # WARNING: if your server is large, you need a higher loop time on the task
