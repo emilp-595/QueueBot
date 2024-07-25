@@ -242,6 +242,9 @@ class Mogi:
     def players_on_confirmed_teams(self) -> List[Player]:
         return flatten([team.players for team in self.confirmed_teams()])
 
+    def all_room_channel_ids(self) -> Set[int]:
+        return {r.channel.id for r in self.rooms if r is not None and r.channel is not None}
+
     def channel_id_in_rooms(self, channel_id: int):
         for room in self.rooms:
             if room is None or room.channel is None:
