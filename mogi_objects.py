@@ -510,7 +510,7 @@ class VoteView(View):
         if common.SERVER is common.Server.MKW:
             self.add_button("6v6", self.general_vote_callback)
 
-    async def make_teams(self, format_):
+    async def make_teams(self, players_per_team: int, vote_str: str):
         if common.SERVER is common.Server.MKW:
             self.mogi.making_rooms_run_time = datetime.now(timezone.utc)
         elif common.SERVER is common.Server.MK8DX:
@@ -529,7 +529,7 @@ class VoteView(View):
 """
         if common.SERVER is common.Server.MKW:
             msg += f"5) 6v6 - {len(self.votes['6v6'])}\n"
-        msg += f"Winner: {format_[1]}\n\n"
+        msg += f"Winner: {vote_str}\n\n"
 
         self.header_text = ""
         tier_text = "Tier " if common.SERVER is common.Server.MK8DX else "T"
@@ -537,9 +537,11 @@ class VoteView(View):
         msg += self.header_text + "\n"
 
         teams = []
-        teams_per_room = int(12 / format_[0])
+        teams_per_room = 12 // players_per_team
+        if common.SERVER is common.Server.MKW and vote_str == "6v6":
+            teams_per_room = 1
         for j in range(teams_per_room):
-            team = Team(self.players[j * format_[0]:(j + 1) * format_[0]])
+            team = Team(self.players[j * teams_per_room:(j + 1) * teams_per_room])
             teams.append(team)
 
         teams.sort(key=lambda team: team.avg_mmr, reverse=True)
@@ -557,8 +559,20 @@ class VoteView(View):
 
         if common.SERVER is common.Server.MK8DX:
             msg += f"\nTable: `/scoreboard`\n"
-
             msg += f"RandomBot Scoreboard: `/scoreboard {teams_per_room} {', '.join(scoreboard_text)}`\n\n"
+        elif common.SERVER is common.Server.MKW and vote_str == "6v6":
+            captain_1 = teams[0].players[0]
+            captain_2 = teams[1].players[0]
+            msg += f"\nCaptain #1: {captain_1.lounge_name}\n"
+            msg += f"Captain #2: {captain_2.lounge_name}\n"
+            msg += f"""Draft instructions:
+1. {captain_1.lounge_name} choose 1 player
+2. {captain_2.lounge_name} choose 2 players
+3. {captain_1.lounge_name} choose 2 players
+4. {captain_2.lounge_name} choose 2 players
+5. {captain_1.lounge_name} choose 2 players
+6. {captain_2.lounge_name} choose 2 players
+7. {captain_1.lounge_name} choose 1 player\n\n"""
 
         penalty_time = self.mogi.making_rooms_run_time + \
             timedelta(minutes=self.penalty_time)
@@ -575,7 +589,7 @@ class VoteView(View):
             else:
                 cur_time = datetime.now(timezone.utc)
                 mkw_room_open_time = cur_time + timedelta(minutes=1)
-                pen_time = cur_time + timedelta(minutes=self.penalty_time)
+                pen_time = mkw_room_open_time + timedelta(minutes=self.penalty_time)
                 msg += f"\nRoom open at :{mkw_room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
 
         room.teams = teams
@@ -588,9 +602,7 @@ class VoteView(View):
 
     async def find_winner(self):
         if not self.found_winner:
-            # for some reason max function wasnt working... # It's because you were replacing it.
             most_votes = len(max(self.votes.values(), key=len))
-
             winners = []
             if len(self.votes["FFA"]) == most_votes:
                 winners.append((1, "FFA"))
@@ -608,7 +620,7 @@ class VoteView(View):
             for curr_button in self.children:
                 curr_button.disabled = True
 
-            await self.make_teams(winner)
+            await self.make_teams(*winner)
 
     def add_button(self, label, callback):
         button = discord.ui.Button(label=f"{label}: 0", custom_id=label)
@@ -630,7 +642,7 @@ class VoteView(View):
                 self.votes[vote].append(interaction.user.id)
             if len(self.votes[vote]) == 6:
                 self.found_winner = True  # This fixes a race condition
-                await self.make_teams((players_per_team, vote))
+                await self.make_teams(players_per_team, vote)
             for curr_button in self.children:
                 curr_button.label = f"{curr_button.custom_id}: {len(self.votes[curr_button.custom_id])}"
                 if self.found_winner:
