@@ -237,6 +237,15 @@ class Mogi:
             if player is not None:
                 player.host_fc = host_fc
 
+    async def assign_roles(self, guild: discord.Guild):
+        for room in self.rooms:
+            try:
+                to_skip = None if room.room_role is None else {room.room_role.id}
+                await room.assign_roles(guild=guild, role_skip=to_skip)
+            except RoleAddFailure:
+                pass
+
+
 
 class Room:
     def __init__(self, teams, room_num: int, channel: discord.Thread | discord.TextChannel, tier_info):
@@ -335,9 +344,17 @@ class Room:
         except:
             raise RoleAddFailure(f"Failed to add role {self.room_role.name} to {member}\n")
 
-    async def assign_roles(self):
+    async def assign_roles(self, guild: discord.Guild, role_skip=None):
         role_add_fail_text = ""
+        role_skip = set() if role_skip is None else set(role_skip)
         for player in self.players:
+            updated_member = guild.get_member(player.member.id)
+            if updated_member is not None:
+                member_role_ids = {r.id for r in updated_member.roles}
+                if len(role_skip.intersection(member_role_ids)) > 0:
+                    print(f"Skipping {player.lounge_name} because has {role_skip.intersection(member_role_ids).pop()}")
+                    continue
+            print(f"Assigning role to {player.lounge_name}")
             try:
                 await self.assign_member_room_role(player.member)
             except RoleAddFailure:
@@ -377,7 +394,7 @@ class Room:
         self.room_role = guild.get_role(tier_role_id)
         if self.room_role is None:
             raise RoleNotFound(f"Could not find role for role id {tier_role_id} for tier {tier_collection}")
-        await self.assign_roles()
+        await self.assign_roles(guild=guild, role_skip=tier_data["role_ids_can_see_already"]+[tier_role_id])
 
 
 class Team:
