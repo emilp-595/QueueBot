@@ -1228,30 +1228,36 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         except Exception as e:
             print(traceback.format_exc())
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(minutes=10)
     async def maintain_roles(self):
         """Removes roles from people who are no longer supposed to see tier channels."""
         try:
             should_start_role_removal = (self.bot_startup_time + timedelta(minutes=self.MOGI_LIFETIME)) <= datetime.now(timezone.utc)
             if not self.is_production:
                 should_start_role_removal = True
-            print("Removing roles.")
             if should_start_role_removal:
+                # Fetch all members (API call) for server to ensure role information is up-to-date
+                # WARNING: if your server is large, you need a higher loop time on the task
                 members = [member async for member in self.GUILD.fetch_members(limit=None)]
+
+                # Gather all discord.Role objects
                 tier_roles = []
                 tier_role_data = common.CONFIG["TIER_CHANNELS"]
                 for tier, tier_data in tier_role_data.items():
                     tier_roles.append(self.GUILD.get_role(tier_data["tier_role_id"]))
 
-                all_mogis = []
+                # Create a list of all current and existing old events
+                all_mogis = [ev for ev in self.old_events if ev is not None]
                 if self.ongoing_event is not None:
-                    all_mogis.append(self.ongoing_event)
-                all_mogis.extend([ev for ev in self.old_events if ev is not None])
+                    all_mogis.insert(0, self.ongoing_event)
+
+                # Create a list of all Rooms who have a valid room role
                 all_rooms = []
                 for mogi in all_mogis:
-                    for room in mogi.rooms:
-                        if room is not None and room.room_role is not None:
-                            all_rooms.append(room)
+                    all_rooms.extend([r for r in mogi.rooms if r is not None and r.room_role is not None])
+
+                # Go through each member in the server and, based on what roles they should have because of the
+                # events they are in, remove any roles they shouldn't have
                 for member in members:
                     should_have_roles = set()
                     for room in all_rooms:
