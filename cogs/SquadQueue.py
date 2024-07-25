@@ -370,7 +370,7 @@ class SquadQueue(commands.Cog):
         mogi.teams.append(squad)
         host_str = " as a host " if host else " "
         msg += f"{players[0].lounge_name} joined queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
-        if player.is_matchmaking_mmr_adjusted:
+        if players[0].is_matchmaking_mmr_adjusted:
             msg += f"\nPlayer considered {player.adjusted_mmr} MMR for matchmaking purposes."
 
         event_status_launched = self.check_close_event_change()
