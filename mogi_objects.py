@@ -64,6 +64,7 @@ class Mogi:
         self.display_time = display_time if is_automated else None
         self.additional_extension = timedelta(
             minutes=additional_extension_minutes)
+        self.has_checked_auto_extend = False
 
     @property
     def num_players(self):
