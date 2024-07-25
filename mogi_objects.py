@@ -94,11 +94,11 @@ class Mogi:
         sorted_players = sorted(players)
         # In the beginning, the best found collection of players is the first 12
         best_collection = sorted_players[0:num_players]
-        cur_min = best_collection[-1].mmr - best_collection[0].mmr
+        cur_min = best_collection[-1].adjusted_mmr - best_collection[0].adjusted_mmr
         # Find the collection of players with the least rating spread
         for lowest_player_index, highest_player in enumerate(sorted_players[num_players:], 1):
             lowest_player = sorted_players[lowest_player_index]
-            cur_range = highest_player.mmr - lowest_player.mmr
+            cur_range = highest_player.adjusted_mmr - lowest_player.adjusted_mmr
             if cur_range < cur_min:
                 cur_min = cur_range
                 best_collection = sorted_players[lowest_player_index:
@@ -305,13 +305,13 @@ class Room:
     def mmr_high(self) -> int:
         if self.teams is None:
             return None
-        return max(self.players).mmr
+        return max(self.players).adjusted_mmr
 
     @property
     def mmr_low(self) -> int:
         if self.teams is None:
             return None
-        return min(self.players).mmr
+        return min(self.players).adjusted_mmr
 
     @property
     def avg_mmr(self) -> int:
@@ -663,6 +663,8 @@ class JoinView(View):
             return
         try:
             user_mmr = self.get_rating_from_discord_id(interaction.user.id)
+            if isinstance(user_mmr, int):
+                user_mmr = Player(None, "", user_mmr).adjusted_mmr
         except:
             await interaction.response.send_message(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
