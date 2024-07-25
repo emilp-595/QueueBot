@@ -513,6 +513,8 @@ class VoteView(View):
     async def make_teams(self, players_per_team: int, vote_str: str):
         if common.SERVER is common.Server.MKW:
             self.mogi.making_rooms_run_time = datetime.now(timezone.utc)
+            if vote_str == "6v6":
+                players_per_team = 1
         elif common.SERVER is common.Server.MK8DX:
             self.mogi.making_rooms_run_time = self.mogi.start_time + \
                 timedelta(minutes=5)
@@ -538,8 +540,6 @@ class VoteView(View):
 
         teams = []
         teams_per_room = 12 // players_per_team
-        if common.SERVER is common.Server.MKW and vote_str == "6v6":
-            teams_per_room = 1
         for j in range(teams_per_room):
             team = Team(self.players[j * teams_per_room:(j + 1) * teams_per_room])
             teams.append(team)
