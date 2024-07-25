@@ -440,7 +440,7 @@ class SquadQueue(commands.Cog):
     @app_commands.command(name="sub")
     @app_commands.guild_only()
     # @commands.cooldown(rate=1, per=120, type=commands.BucketType.user)
-    async def sub(self, interaction: discord.Interaction):
+    async def sub(self, interaction: discord.Interaction, races_left: int):
         """Sends out a request for a sub in the sub channel. Only works in thread channels for SQ rooms."""
         current_time = time.time()
         lastCommandTime = cooldowns.get(interaction.user.id)
@@ -464,13 +464,13 @@ class SquadQueue(commands.Cog):
         frequently_tagged_role_id = self.bot.config["frequently_tagged_role_id"]
         msg = f"<@&{frequently_tagged_role_id}> - "
         if bottom_room_num == 1:
-            msg += f"Room 1 is looking for a sub with any mmr\n"
+            msg += f"Room 1 is looking for a sub for {races_left} more races with any mmr\n"
         elif room.room_num == 1:
-            msg += f"Room 1 is looking for a sub with mmr >{room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}\n"
+            msg += f"Room 1 is looking for a sub for {races_left} more races with mmr >{room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}\n"
         elif room.room_num == bottom_room_num:
-            msg += f"Room {room.room_num} is looking for a sub with mmr <{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
+            msg += f"Room {room.room_num} is looking for a sub for {races_left} more races with mmr <{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
         else:
-            msg += f"Room {room.room_num} is looking for a sub with range {room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}-{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
+            msg += f"Room {room.room_num} is looking for a sub for {races_left} more races with range {room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}-{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
         message_delete_date = datetime.now(
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
