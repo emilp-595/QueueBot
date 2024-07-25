@@ -105,35 +105,6 @@ class Mogi:
                                                  lowest_player_index + num_players]
         return best_collection
 
-    def _OLD_all_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[List[Player]], int]:
-        if self.max_possible_rooms == 0:
-            return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
-        all_confirmed_players = self.players_on_confirmed_teams()
-        first_late_player_index = (self.num_players // self.players_per_room) * self.players_per_room
-        on_time_players = sorted(all_confirmed_players[:first_late_player_index], reverse=True)
-        late_players = all_confirmed_players[first_late_player_index:]
-        player_rooms: List[List[Player]] = list(common.divide_chunks(on_time_players, self.players_per_room))
-
-        any_invalid = False
-        for pr_index, player_room in enumerate(player_rooms, 0):
-            for lp_index in range(len(late_players)+1):
-                current_late_check_players = late_players[0:lp_index]
-                best_collection = Mogi._minimize_range(player_room + current_late_check_players, self.players_per_room)
-                if valid_players_check(best_collection):
-                    best_collection.sort(reverse=True)
-                    # Get all the players who were swapped out of the room and put them at the front of the late player list
-                    swapped_out_players = [p for p in player_room if p not in best_collection]
-                    swapped_in_players = [p for p in best_collection if p not in player_room]
-                    late_players = swapped_out_players + list(filter(lambda p: p not in swapped_in_players, late_players))
-                    player_rooms[pr_index] = best_collection
-                    break
-            else:
-                # After checking all late players, no room player list with a valid range could be found for this room
-                any_invalid = True
-
-        return player_rooms, (Mogi.ALGORITHM_STATUS_SUCCESS_SOME_INVALID if any_invalid else Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
-
-
     def _all_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[List[Player]], int]:
         if self.max_possible_rooms == 0:
             return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
