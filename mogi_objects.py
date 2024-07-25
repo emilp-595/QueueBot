@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import traceback
 import common
+from contextlib import suppress
 from common import flatten
 import random
 import discord
 from datetime import datetime, timezone, timedelta
 from discord.ui import View
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Set
 import host_fcs
 
 
@@ -286,6 +287,21 @@ class Room:
             return str(get_tier_mkw(self.avg_mmr, self.tier_info))
 
     @property
+    def tier_collection(self) -> str:
+        if common.SERVER is common.Server.MK8DX:
+            return self.tier
+        if common.SERVER is common.Server.MKW:
+            tier_number = self.tier
+            if not common.is_int(tier_number):
+                return "HT"
+            tier_number = int(tier_number)
+            if tier_number <= 2:
+                return "LT"
+            if tier_number >= 5:
+                return "HT"
+            return "MT"
+
+    @property
     def mmr_high(self) -> int:
         if self.teams is None:
             return None
@@ -364,33 +380,32 @@ class Room:
     async def prepare_room_channel(self, guild: discord.Guild, all_events: List[Mogi | None]):
         if common.CONFIG["USE_THREADS"]:
             return
-        tier_data = common.CONFIG["TIER_CHANNELS"][self.tier]
-
-        all_tier_channel_ids = set(tier_data["channel_ids"])
-        in_use_tier_channel_ids = set()
+        
+        # Find the available tier channels for the tier (collection)
+        tier_collection = self.tier_collection
+        tier_data = common.CONFIG["TIER_CHANNELS"][tier_collection]
+        free_tier_channel_ids = list(tier_data["channel_ids"])
         for event in all_events:
             if event is None:
                 continue
-            for tier_channel_id in all_tier_channel_ids:
-                if event.channel_id_in_rooms(tier_channel_id):
-                    in_use_tier_channel_ids.add(tier_channel_id)
-
-        free_channel_ids = all_tier_channel_ids - in_use_tier_channel_ids
-        if len(free_channel_ids) == 0:
-            raise NoFreeChannels(f"No free channels for tier {self.tier}")
-
-        channel_id = free_channel_ids.pop()
-        found_channel = guild.get_channel(channel_id)
+            for channel_id in event.all_room_channel_ids():
+                with suppress(ValueError):
+                    free_tier_channel_ids.remove(channel_id)
+        # If there are no available tier channels, raise an exception
+        if len(free_tier_channel_ids) == 0:
+            raise NoFreeChannels(f"No free channels for tier {tier_collection}")
+        
+        # Get the discord.GuildChannel of the first available channel id
+        found_channel = guild.get_channel(free_tier_channel_ids[0])
         if not isinstance(found_channel, discord.TextChannel):
-            raise WrongChannelType(f"For tier {self.tier}, channel id {channel_id} is of type {type(found_channel)}, expected discord.TextChannel")
-
+            raise WrongChannelType(f"For tier {tier_collection}, channel id {channel_id} is of type {type(found_channel)}, expected discord.TextChannel")
         self.channel = found_channel
 
+        # Assign the role for the tier collection to all players in the room so they can see the tier
         tier_role_id = tier_data["tier_role_id"]
         self.room_role = guild.get_role(tier_role_id)
         if self.room_role is None:
-            raise RoleNotFound(f"Could not find role for role id {tier_role_id} for tier {self.tier}")
-
+            raise RoleNotFound(f"Could not find role for role id {tier_role_id} for tier {tier_collection}")
         await self.assign_roles()
 
 
