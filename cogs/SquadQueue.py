@@ -999,6 +999,7 @@ class SquadQueue(commands.Cog):
                 player_mentions = " ".join([p.mention for p in room_players])
                 extra_member_mentions = " ".join(
                     [m.mention for m in extra_members if m is not None])
+
                 room_msg = ""
                 if common.SERVER is common.Server.MKW:
                     room_msg += f"""{msg}
@@ -1012,8 +1013,26 @@ Vote for format FFA, 2v2, 3v3, 4v4.
 {player_mentions} {extra_member_mentions}
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
+                # The below try/except clause around Room.prepare_room_channel only runs if the config's USE_THREADS is set to false
                 try:
                     await curr_room.prepare_room_channel(self.GUILD, all_events=([self.ongoing_event] + self.old_events))
+                # Non-fatal error, message already sent to room channel, continue with room creation
+                except mogi_objects.RoleAddFailure:
+                    pass
+                # semi-critical failures, but the room can proceed
+                except mogi_objects.RoleNotFound as e:
+                    await mogi.mogi_channel.send(f"**ERROR:** {e}")
+                # critical failure, but we can recover by creating a thread
+                except (mogi_objects.WrongChannelType, mogi_objects.NoFreeChannels) as e:
+                    await mogi.mogi_channel.send(f"**ERROR:** {e}, attempting to create room thread instead...")
+                    room_name = f"{mogi.display_time.month}/{mogi.display_time.day}, {mogi.display_time.hour}:{mogi.display_time.minute:02}:00 - Room {room_number}"
+                    curr_room.channel = await self.GENERAL_CHANNEL.create_thread(name=room_name, auto_archive_duration=60, invitable=False)
+                # critical failure, the room cannot proceed
+                except mogi_objects.WrongChannelType as e:
+                    await mogi.mogi_channel.send(f"**ERROR:** {e}")
+                    continue
+
+                try:
                     await curr_room.channel.send(room_msg)
                     view = VoteView(room_players, curr_room.channel,
                                     mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME)
@@ -1024,11 +1043,6 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                     err_msg += player_mentions + extra_member_mentions
                     msg += err_msg
                     print(traceback.format_exc())
-                except mogi_objects.RoleAddFailure:
-                    pass
-                except mogi_objects.PrepFailure as e:
-                    await mogi.mogi_channel.send(f"ERROR: **{e}**")
-
 
             try:
                 await mogi.mogi_channel.send(msg)
