@@ -39,7 +39,7 @@ def is_restricted(user: discord.User | discord.Member) -> bool:
 def basic_threshold_players_allowed(players: List[Player], threshold: int) -> bool:
     """Returns True if the highest player's rating minus the lowest player's rating is below the given threshold"""
     sorted_players = sorted(players, key=lambda p: p.mmr)
-    return (sorted_players[-1].mmr - sorted_players[0].mmr) <= threshold
+    return (sorted_players[-1].adjusted_mmr - sorted_players[0].adjusted_mmr) <= threshold
 
 
 def mkw_players_allowed(players: List[Player], threshold: int) -> bool:
@@ -370,6 +370,8 @@ class SquadQueue(commands.Cog):
         mogi.teams.append(squad)
         host_str = " as a host " if host else " "
         msg += f"{players[0].lounge_name} joined queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
+        if players[0].is_matchmaking_mmr_adjusted:
+            msg += f"\nPlayer considered {players[0].adjusted_mmr} MMR for matchmaking purposes."
 
         event_status_launched = self.check_close_event_change()
         try:
@@ -486,14 +488,16 @@ class SquadQueue(commands.Cog):
             msg += "**Current Mogi List:**\n"
             if common.SERVER is common.Server.MKW:
                 for i, player in enumerate(on_time_players, 1):
-                    msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
+                    adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
+                    msg += f"{i}) {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
                 if len(on_time_players) == 0:  # Text looks better this way
                     msg += "\n"
                 msg += "**Late Players:**\n"
                 for i, player in enumerate(late_players, 1):
-                    msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
+                    adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
+                    msg += f"{i}) {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
             elif common.SERVER is common.Server.MK8DX:
                 all_confirmed_players.sort(reverse=True)
                 for i, player in enumerate(all_confirmed_players, 1):
@@ -986,12 +990,15 @@ class SquadQueue(commands.Cog):
         proposed_list = mogi.generate_proposed_list(self.allowed_players_check)
         await mogi.populate_host_fcs()
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
-            msg = f"`Room {room_number} - Player List`\n"
+            mogi_channel_msg = f"`Room {room_number} - Player List`\n"
+            room_msg = mogi_channel_msg
             for player_num, player in enumerate(room_players, 1):
                 added_str = ": **Added from late players**" if player in late_player_list else ""
-                msg += f"""`{player_num}.` {player.lounge_name} ({player.mmr} MMR){added_str}\n"""
+                adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
+                mogi_channel_msg += f"`{player_num}.` {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR){added_str}\n"
+                room_msg += f"`{player_num}.` {player.lounge_name} ({player.mmr} MMR)\n"
             if not self.allowed_players_check(room_players):
-                msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
+                mogi_channel_msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
                 curr_room = mogi.rooms[room_number - 1]
                 curr_room.teams = [Team([p]) for p in room_players]
@@ -1000,15 +1007,14 @@ class SquadQueue(commands.Cog):
                 extra_member_mentions = " ".join(
                     [m.mention for m in extra_members if m is not None])
 
-                room_msg = ""
                 if common.SERVER is common.Server.MKW:
-                    room_msg += f"""{msg}
+                    room_msg += f"""
 Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
 {player_mentions} {extra_member_mentions}
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
                 elif common.SERVER is common.Server.MK8DX:
-                    room_msg += f"""{msg}
+                    room_msg += f"""
 Vote for format FFA, 2v2, 3v3, 4v4.
 {player_mentions} {extra_member_mentions}
 
@@ -1041,11 +1047,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 except discord.DiscordException:
                     err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
                     err_msg += player_mentions + extra_member_mentions
-                    msg += err_msg
+                    mogi_channel_msg += err_msg
                     print(traceback.format_exc())
 
             try:
-                await mogi.mogi_channel.send(msg)
+                await mogi.mogi_channel.send(mogi_channel_msg)
             except discord.DiscordException:
                 print(
                     f"Mogi Channel message for room {room_number} has failed to send.", flush=True)
@@ -1055,12 +1061,13 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         not_in_proposed_list = [
             p for p in all_confirmed_players if p not in proposed_list]
         if len(not_in_proposed_list) > 0:
-            msg = "`Late players:`\n"
+            mogi_channel_msg = "`Late players:`\n"
             for i, player in enumerate(not_in_proposed_list, 1):
                 removed_str = ": **Removed from player list**" if player in regular_player_list else ""
-                msg += f"`{i}.` {player.lounge_name} ({int(player.mmr)} MMR) {removed_str}\n"
+                adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
+                mogi_channel_msg += f"`{i}.` {player.lounge_name} ({int(player.mmr)} {adjusted_mmr_text}MMR) {removed_str}\n"
             try:
-                await mogi.mogi_channel.send(msg)
+                await mogi.mogi_channel.send(mogi_channel_msg)
             except discord.DiscordException:
                 print("Late Player message has failed to send.", flush=True)
                 print(traceback.format_exc())
@@ -1247,8 +1254,6 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         """Removes roles from people who are no longer supposed to see tier channels."""
         try:
             should_start_role_removal = (self.bot_startup_time + timedelta(minutes=self.MOGI_LIFETIME)) <= datetime.now(timezone.utc)
-            if not self.is_production:
-                should_start_role_removal = True
             if should_start_role_removal:
                 # Fetch all members (API call) for server to ensure role information is up-to-date
                 # WARNING: if your server is large, you need a higher loop time on the task

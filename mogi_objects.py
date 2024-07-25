@@ -94,45 +94,16 @@ class Mogi:
         sorted_players = sorted(players)
         # In the beginning, the best found collection of players is the first 12
         best_collection = sorted_players[0:num_players]
-        cur_min = best_collection[-1].mmr - best_collection[0].mmr
+        cur_min = best_collection[-1].adjusted_mmr - best_collection[0].adjusted_mmr
         # Find the collection of players with the least rating spread
         for lowest_player_index, highest_player in enumerate(sorted_players[num_players:], 1):
             lowest_player = sorted_players[lowest_player_index]
-            cur_range = highest_player.mmr - lowest_player.mmr
+            cur_range = highest_player.adjusted_mmr - lowest_player.adjusted_mmr
             if cur_range < cur_min:
                 cur_min = cur_range
                 best_collection = sorted_players[lowest_player_index:
                                                  lowest_player_index + num_players]
         return best_collection
-
-    def _OLD_all_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[List[Player]], int]:
-        if self.max_possible_rooms == 0:
-            return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
-        all_confirmed_players = self.players_on_confirmed_teams()
-        first_late_player_index = (self.num_players // self.players_per_room) * self.players_per_room
-        on_time_players = sorted(all_confirmed_players[:first_late_player_index], reverse=True)
-        late_players = all_confirmed_players[first_late_player_index:]
-        player_rooms: List[List[Player]] = list(common.divide_chunks(on_time_players, self.players_per_room))
-
-        any_invalid = False
-        for pr_index, player_room in enumerate(player_rooms, 0):
-            for lp_index in range(len(late_players)+1):
-                current_late_check_players = late_players[0:lp_index]
-                best_collection = Mogi._minimize_range(player_room + current_late_check_players, self.players_per_room)
-                if valid_players_check(best_collection):
-                    best_collection.sort(reverse=True)
-                    # Get all the players who were swapped out of the room and put them at the front of the late player list
-                    swapped_out_players = [p for p in player_room if p not in best_collection]
-                    swapped_in_players = [p for p in best_collection if p not in player_room]
-                    late_players = swapped_out_players + list(filter(lambda p: p not in swapped_in_players, late_players))
-                    player_rooms[pr_index] = best_collection
-                    break
-            else:
-                # After checking all late players, no room player list with a valid range could be found for this room
-                any_invalid = True
-
-        return player_rooms, (Mogi.ALGORITHM_STATUS_SUCCESS_SOME_INVALID if any_invalid else Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
-
 
     def _all_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[List[Player]], int]:
         if self.max_possible_rooms == 0:
@@ -305,13 +276,13 @@ class Room:
     def mmr_high(self) -> int:
         if self.teams is None:
             return None
-        return max(self.players).mmr
+        return max(self.players).adjusted_mmr
 
     @property
     def mmr_low(self) -> int:
         if self.teams is None:
             return None
-        return min(self.players).mmr
+        return min(self.players).adjusted_mmr
 
     @property
     def avg_mmr(self) -> int:
@@ -466,6 +437,22 @@ class Player:
         self.score = 0
         self.host = host
         self.host_fc = None
+
+    @property
+    def adjusted_mmr(self):
+        minimum_mmr = common.CONFIG["MATCHMAKING_BOTTOM_MMR"]
+        maximum_mmr = common.CONFIG["MATCHMAKING_TOP_MMR"]
+        if minimum_mmr is None or maximum_mmr is None:
+            return self.mmr
+        if self.mmr < minimum_mmr:
+            return minimum_mmr
+        if self.mmr > maximum_mmr:
+            return maximum_mmr
+        return self.mmr
+
+    @property
+    def is_matchmaking_mmr_adjusted(self):
+        return self.mmr != self.adjusted_mmr
 
     @property
     def mention(self):
@@ -647,6 +634,8 @@ class JoinView(View):
             return
         try:
             user_mmr = self.get_rating_from_discord_id(interaction.user.id)
+            if isinstance(user_mmr, int):
+                user_mmr = Player(None, "", user_mmr).adjusted_mmr
         except:
             await interaction.response.send_message(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
