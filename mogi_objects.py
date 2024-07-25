@@ -246,12 +246,7 @@ class Mogi:
         return {r.channel.id for r in self.rooms if r is not None and r.channel is not None}
 
     def channel_id_in_rooms(self, channel_id: int):
-        for room in self.rooms:
-            if room is None or room.channel is None:
-                continue
-            if room.channel.id == channel_id:
-                return True
-        return False
+        return channel_id in self.all_room_channel_ids()
 
     def get_room_from_channel_id(self, channel_id: int):
         for room in self.rooms:
