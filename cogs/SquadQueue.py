@@ -496,7 +496,8 @@ class SquadQueue(commands.Cog):
                     msg += "\n"
                 msg += "**Late Players:**\n"
                 for i, player in enumerate(late_players, 1):
-                    msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
+                    adjusted_mmr_text = f"MMR -> {player.adjusted_mmr}" if player.is_matchmaking_mmr_adjusted else ""
+                    msg += f"{i}) {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
             elif common.SERVER is common.Server.MK8DX:
                 all_confirmed_players.sort(reverse=True)
                 for i, player in enumerate(all_confirmed_players, 1):
