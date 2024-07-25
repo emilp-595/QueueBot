@@ -486,7 +486,8 @@ class SquadQueue(commands.Cog):
             msg += "**Current Mogi List:**\n"
             if common.SERVER is common.Server.MKW:
                 for i, player in enumerate(on_time_players, 1):
-                    msg += f"{i}) {player.lounge_name} ({player.mmr} MMR)\n"
+                    adjusted_mmr_text = f"MMR -> {player.adjusted_mmr}" if player.is_matchmaking_mmr_adjusted else ""
+                    msg += f"{i}) {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
                 if len(on_time_players) == 0:  # Text looks better this way
