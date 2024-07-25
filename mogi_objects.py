@@ -573,9 +573,9 @@ class VoteView(View):
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
             else:
                 cur_time = datetime.now(timezone.utc)
-                room_open_time = cur_time + timedelta(minutes=1)
+                mkw_room_open_time = cur_time + timedelta(minutes=1)
                 pen_time = cur_time + timedelta(minutes=self.penalty_time)
-                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
+                msg += f"\nRoom open at :{mkw_room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
 
         room.teams = teams
 
