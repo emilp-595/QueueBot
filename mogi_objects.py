@@ -564,12 +564,12 @@ class VoteView(View):
         room_open_time = self.mogi.making_rooms_run_time
         potential_host_str = self.room.get_host_str()
         if potential_host_str == "":
-            if common.SERVER.MK8DX:
+            if common.SERVER is common.Server.MK8DX:
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
             elif common.SERVER.MKW:
                 msg += f"\nPenalty is {self.penalty_time.minute} minutes after the room opens. Good luck!"
         else:
-            if common.SERVER.MK8DX:
+            if common.SERVER is common.Server.MK8DX:
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
             else:
                 cur_time = datetime.now(timezone.utc)
