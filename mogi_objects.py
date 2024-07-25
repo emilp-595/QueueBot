@@ -468,7 +468,7 @@ class Player:
         self.host_fc = None
 
     @property
-    def considered_mmr(self):
+    def adjusted_mmr(self):
         minimum_mmr = common.CONFIG["MATCHMAKING_BOTTOM_MMR"]
         maximum_mmr = common.CONFIG["MATCHMAKING_TOP_MMR"]
         if minimum_mmr is None or maximum_mmr is None:
@@ -481,7 +481,7 @@ class Player:
 
     @property
     def is_matchmaking_mmr_adjusted(self):
-        return self.mmr != self.considered_mmr
+        return self.mmr != self.adjusted_mmr
 
     @property
     def mention(self):
