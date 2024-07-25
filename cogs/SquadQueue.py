@@ -488,7 +488,7 @@ class SquadQueue(commands.Cog):
             msg += "**Current Mogi List:**\n"
             if common.SERVER is common.Server.MKW:
                 for i, player in enumerate(on_time_players, 1):
-                    adjusted_mmr_text = f"MMR -> {player.adjusted_mmr}" if player.is_matchmaking_mmr_adjusted else ""
+                    adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
                     msg += f"{i}) {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
@@ -496,7 +496,7 @@ class SquadQueue(commands.Cog):
                     msg += "\n"
                 msg += "**Late Players:**\n"
                 for i, player in enumerate(late_players, 1):
-                    adjusted_mmr_text = f"MMR -> {player.adjusted_mmr}" if player.is_matchmaking_mmr_adjusted else ""
+                    adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
                     msg += f"{i}) {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
             elif common.SERVER is common.Server.MK8DX:
                 all_confirmed_players.sort(reverse=True)
