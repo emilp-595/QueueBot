@@ -563,16 +563,16 @@ class VoteView(View):
         elif common.SERVER is common.Server.MKW and vote_str == "6v6":
             captain_1 = teams[0].players[0]
             captain_2 = teams[1].players[0]
-            msg += f"\nCaptain #1: {captain_1.lounge_name}\n"
-            msg += f"Captain #2: {captain_2.lounge_name}\n"
+            msg += f"\nCaptain #1: **{captain_1.lounge_name}**\n"
+            msg += f"Captain #2: **{captain_2.lounge_name}**\n"
             msg += f"""Draft instructions:
-1. {captain_1.lounge_name} choose 1 player
-2. {captain_2.lounge_name} choose 2 players
-3. {captain_1.lounge_name} choose 2 players
-4. {captain_2.lounge_name} choose 2 players
-5. {captain_1.lounge_name} choose 2 players
-6. {captain_2.lounge_name} choose 2 players
-7. {captain_1.lounge_name} choose 1 player\n\n"""
+1. **{captain_1.lounge_name}** picks 1 player
+2. **{captain_2.lounge_name}** picks 2 players
+3. **{captain_1.lounge_name}** picks 2 players
+4. **{captain_2.lounge_name}** picks 2 players
+5. **{captain_1.lounge_name}** picks 2 players
+6. **{captain_2.lounge_name}** picks 2 players
+7. **{captain_1.lounge_name}** picks 1 player\n"""
 
         penalty_time = self.mogi.making_rooms_run_time + \
             timedelta(minutes=self.penalty_time)
