@@ -364,15 +364,6 @@ class Room:
     async def prepare_room_channel(self, guild: discord.Guild, all_events: List[Mogi | None]):
         if common.CONFIG["USE_THREADS"]:
             return
-        """
-        "1": {
-            "tier_role_id": 1114695238716497980,
-            "channel_ids": [
-                1264120088651628596,
-                1264120865881325629
-            ]
-        }
-        """
         tier_data = common.CONFIG["TIER_CHANNELS"][self.tier]
 
         all_tier_channel_ids = set(tier_data["channel_ids"])
