@@ -298,10 +298,10 @@ class Room:
         return min(self.players).mmr
 
     @property
-    def avg_mmr(self) -> float:
+    def avg_mmr(self) -> int:
         if self.teams is None:
             return 0
-        return average([p.mmr for p in self.players])
+        return int(average([p.mmr for p in self.players]))
 
     @property
     def players(self) -> List[Player]:
