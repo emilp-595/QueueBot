@@ -1074,6 +1074,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
 
         # We could have used asyncio.call_later(120, handle_voting_and_history)
         # and removed asyncio.sleep(120) in handle_voting_and_history
+        if not common.CONFIG["USE_THREADS"]:
+            asyncio.create_task(self.ongoing_event.assign_roles(guild=self.GUILD))
         asyncio.create_task(SquadQueue.handle_voting_and_history(
             self.ongoing_event, self.HISTORY_CHANNEL))
         self.old_events.append(self.ongoing_event)
