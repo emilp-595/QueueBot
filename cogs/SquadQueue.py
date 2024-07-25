@@ -39,7 +39,7 @@ def is_restricted(user: discord.User | discord.Member) -> bool:
 def basic_threshold_players_allowed(players: List[Player], threshold: int) -> bool:
     """Returns True if the highest player's rating minus the lowest player's rating is below the given threshold"""
     sorted_players = sorted(players, key=lambda p: p.mmr)
-    return (sorted_players[-1].mmr - sorted_players[0].mmr) <= threshold
+    return (sorted_players[-1].adjusted_mmr - sorted_players[0].adjusted_mmr) <= threshold
 
 
 def mkw_players_allowed(players: List[Player], threshold: int) -> bool:
