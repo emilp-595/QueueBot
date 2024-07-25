@@ -468,6 +468,22 @@ class Player:
         self.host_fc = None
 
     @property
+    def considered_mmr(self):
+        minimum_mmr = common.CONFIG["MATCHMAKING_BOTTOM_MMR"]
+        maximum_mmr = common.CONFIG["MATCHMAKING_TOP_MMR"]
+        if minimum_mmr is None or maximum_mmr is None:
+            return self.mmr
+        if self.mmr < minimum_mmr:
+            return minimum_mmr
+        if self.mmr > maximum_mmr:
+            return maximum_mmr
+        return self.mmr
+
+    @property
+    def is_matchmaking_mmr_adjusted(self):
+        return self.mmr != self.considered_mmr
+
+    @property
     def mention(self):
         """String that, when sent in a Discord message, will mention and ping the player."""
         if self.member is None:
