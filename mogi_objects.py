@@ -567,7 +567,7 @@ class VoteView(View):
             if common.SERVER is common.Server.MK8DX:
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
             elif common.SERVER.MKW:
-                msg += f"\nPenalty is {self.penalty_time.minute} minutes after the room opens. Good luck!"
+                msg += f"\nPenalty is {self.penalty_time} minutes after the room opens. Good luck!"
         else:
             if common.SERVER is common.Server.MK8DX:
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
