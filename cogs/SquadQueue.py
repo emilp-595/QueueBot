@@ -4,15 +4,15 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from dateutil.parser import parse
 from datetime import datetime, timezone, timedelta
 import time
 import json
 
 import common
+import mogi_objects
 from common import divide_chunks
 import mmr
-from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView, get_tier, get_tier_mk8dx
+from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView
 import asyncio
 from collections import defaultdict
 from typing import Dict, List, Tuple
@@ -55,6 +55,8 @@ def mk8dx_players_allowed(players: List[Player], threshold: int) -> bool:
 class SquadQueue(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
+
+        self.bot_startup_time = datetime.now(timezone.utc)
 
         self.is_production = bot.config["is_production"]
 
@@ -185,7 +187,9 @@ class SquadQueue(commands.Cog):
         print("Ready!", flush=True)
         self.refresh_ratings.start()
         self.refresh_helper_roles.start()
-        self.check_room_channels_task.start()
+        self.check_room_threads_task.start()
+        if not common.CONFIG["USE_THREADS"]:
+            self.maintain_roles.start()
 
     async def lockdown(self, channel: discord.TextChannel):
         # everyone_perms = channel.permissions_for(channel.guild.default_role)
@@ -425,13 +429,13 @@ class SquadQueue(commands.Cog):
         bottom_room_num = 1
         mogi = self.ongoing_event
         if mogi is not None:
-            if mogi.is_room_thread(interaction.channel_id):
-                room = mogi.get_room_from_thread(interaction.channel_id)
+            if mogi.channel_id_in_rooms(interaction.channel_id):
+                room = mogi.get_room_from_channel_id(interaction.channel_id)
                 bottom_room_num = len(mogi.rooms)
                 is_room_thread = True
         for old_mogi in self.old_events:
-            if old_mogi.is_room_thread(interaction.channel.id):
-                room = old_mogi.get_room_from_thread(interaction.channel.id)
+            if old_mogi.channel_id_in_rooms(interaction.channel.id):
+                room = old_mogi.get_room_from_channel_id(interaction.channel.id)
                 bottom_room_num = len(old_mogi.rooms)
                 is_room_thread = True
                 break
@@ -544,15 +548,15 @@ class SquadQueue(commands.Cog):
             return
         mogi = None
         if self.ongoing_event is not None:
-            mogi = self.ongoing_event if self.ongoing_event.is_room_thread(
+            mogi = self.ongoing_event if self.ongoing_event.channel_id_in_rooms(
                 message.channel.id) else None
         if mogi is None:
-            mogi = discord.utils.find(lambda m: m.is_room_thread(
+            mogi = discord.utils.find(lambda m: m.channel_id_in_rooms(
                 message.channel.id), self.old_events)
         if mogi is None:
             return
         room = discord.utils.find(
-            lambda r: r.thread.id == message.channel.id, mogi.rooms)
+            lambda r: r.channel.id == message.channel.id, mogi.rooms)
         if room is None or not room.teams:
             return
         team = discord.utils.find(
@@ -576,25 +580,25 @@ class SquadQueue(commands.Cog):
             await interaction.response.send_message(f"Cannot use this command here.", ephemeral=True)
             return
 
-        mogi = discord.utils.find(lambda mogi: mogi.is_room_thread(
+        mogi = discord.utils.find(lambda mogi: mogi.channel_id_in_rooms(
             interaction.channel_id), self.old_events)
         if not mogi:
             await interaction.response.send_message(f"The Mogi object cannot be found.", ephemeral=True)
             return
 
         room = discord.utils.find(
-            lambda room: room.thread.id == interaction.channel_id, mogi.rooms)
+            lambda room: room.channel.id == interaction.channel_id, mogi.rooms)
         if not room:
             await interaction.response.send_message(f"The Thread object cannot be found.", ephemeral=True)
             return
 
-        format = round(12/len(room.teams))
+        format_ = round(12/len(room.teams))
 
-        msg = f"!submit {format} {get_tier_mk8dx(room.mmr_average - 500)}\n"
+        msg = f"!submit {format_} {room.tier}\n"
         for team in room.teams:
             for player in team.players:
                 msg += f"{player.lounge_name} {player.score}\n"
-            if format != 1:
+            if format_ != 1:
                 msg += "\n"
         await interaction.response.send_message(msg)
 
@@ -783,7 +787,7 @@ class SquadQueue(commands.Cog):
     async def schedule_sq_times(self, ctx, timestamps: commands.Greedy[int]):
         """Saves a list of sq times to skip over.  Input a list of unix utc timestamps.  Staff use only."""
         if not self.is_staff(ctx.author) and not await self.bot.is_owner(ctx.author):
-            self.queue_or_send(
+            await self.queue_or_send(
                 ctx, "You do not have permission to use this command.")
             return
 
@@ -901,7 +905,7 @@ class SquadQueue(commands.Cog):
                             f"Skipping room {index} in function write_history.", flush=True)
                         continue
                     msg = room.view.header_text
-                    msg += f"{room.thread.jump_url}\n"
+                    msg += f"{room.channel.jump_url}\n"
                     msg += room.view.teams_text
                     msg += "ㅤ"
                     await history_channel.send(msg)
@@ -910,9 +914,12 @@ class SquadQueue(commands.Cog):
 
     # make thread channels while the event is gathering instead of at the end,
     # since discord only allows 50 thread channels to be created per 5 minutes.
-    async def check_room_channels(self, mogi):
+    async def check_room_threads(self, mogi: Mogi):
         num_created_rooms = len(mogi.rooms)
         for i in range(num_created_rooms, mogi.max_possible_rooms):
+            if not common.CONFIG["USE_THREADS"]:
+                mogi.rooms.append(Room(None, i + 1, None, self.TIER_INFO))
+                continue
             display_time = mogi.display_time
             minute = display_time.minute
             if len(str(minute)) == 1:
@@ -932,7 +939,7 @@ class SquadQueue(commands.Cog):
                 err_msg = f"\nAn error has occurred while creating a room channel:\n{e}"
                 await mogi.mogi_channel.send(err_msg)
                 return
-            mogi.rooms.append(Room(None, i+1, room_channel))
+            mogi.rooms.append(Room(None, i+1, room_channel, self.TIER_INFO))
 
     @staticmethod
     async def handle_voting_and_history(mogi: Mogi, history_channel: discord.TextChannel):
@@ -959,7 +966,7 @@ class SquadQueue(commands.Cog):
         mogi.making_rooms_run = True
         mogi.gathering = False
 
-        await self.check_room_channels(mogi)
+        await self.check_room_threads(mogi)
 
         if was_gathering:
             await mogi.mogi_channel.send("Mogi is now closed; players can no longer join or drop from the event")
@@ -992,6 +999,7 @@ class SquadQueue(commands.Cog):
                 player_mentions = " ".join([p.mention for p in room_players])
                 extra_member_mentions = " ".join(
                     [m.mention for m in extra_members if m is not None])
+
                 room_msg = ""
                 if common.SERVER is common.Server.MKW:
                     room_msg += f"""{msg}
@@ -1005,12 +1013,31 @@ Vote for format FFA, 2v2, 3v3, 4v4.
 {player_mentions} {extra_member_mentions}
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
+                # The below try/except clause around Room.prepare_room_channel only runs if the config's USE_THREADS is set to false
                 try:
-                    await curr_room.thread.send(room_msg)
-                    view = VoteView(room_players, curr_room.thread,
-                                    mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME, self.TIER_INFO)
+                    await curr_room.prepare_room_channel(self.GUILD, all_events=([self.ongoing_event] + self.old_events))
+                # Non-fatal error, message already sent to room channel, continue with room creation
+                except mogi_objects.RoleAddFailure:
+                    pass
+                # semi-critical failures, but the room can proceed
+                except mogi_objects.RoleNotFound as e:
+                    await mogi.mogi_channel.send(f"**ERROR:** {e}")
+                # critical failure, but we can recover by creating a thread
+                except (mogi_objects.WrongChannelType, mogi_objects.NoFreeChannels) as e:
+                    await mogi.mogi_channel.send(f"**ERROR:** {e}, attempting to create room thread instead...")
+                    room_name = f"{mogi.display_time.month}/{mogi.display_time.day}, {mogi.display_time.hour}:{mogi.display_time.minute:02}:00 - Room {room_number}"
+                    curr_room.channel = await self.GENERAL_CHANNEL.create_thread(name=room_name, auto_archive_duration=60, invitable=False)
+                # critical failure, the room cannot proceed
+                except mogi_objects.WrongChannelType as e:
+                    await mogi.mogi_channel.send(f"**ERROR:** {e}")
+                    continue
+
+                try:
+                    await curr_room.channel.send(room_msg)
+                    view = VoteView(room_players, curr_room.channel,
+                                    mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME)
                     curr_room.view = view
-                    await curr_room.thread.send(view=view)
+                    await curr_room.channel.send(view=view)
                 except discord.DiscordException:
                     err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
                     err_msg += player_mentions + extra_member_mentions
@@ -1215,11 +1242,58 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         except Exception as e:
             print(traceback.format_exc())
 
+    @tasks.loop(minutes=10)
+    async def maintain_roles(self):
+        """Removes roles from people who are no longer supposed to see tier channels."""
+        try:
+            should_start_role_removal = (self.bot_startup_time + timedelta(minutes=self.MOGI_LIFETIME)) <= datetime.now(timezone.utc)
+            if not self.is_production:
+                should_start_role_removal = True
+            if should_start_role_removal:
+                # Fetch all members (API call) for server to ensure role information is up-to-date
+                # WARNING: if your server is large, you need a higher loop time on the task
+                members = [member async for member in self.GUILD.fetch_members(limit=None)]
+
+                # Gather all discord.Role objects
+                tier_roles = []
+                tier_role_data = common.CONFIG["TIER_CHANNELS"]
+                for tier, tier_data in tier_role_data.items():
+                    tier_roles.append(self.GUILD.get_role(tier_data["tier_role_id"]))
+
+                # Create a list of all current and existing old events
+                all_mogis = [ev for ev in self.old_events if ev is not None]
+                if self.ongoing_event is not None:
+                    all_mogis.insert(0, self.ongoing_event)
+
+                # Create a list of all Rooms who have a valid room role
+                all_rooms = []
+                for mogi in all_mogis:
+                    all_rooms.extend([r for r in mogi.rooms if r is not None and r.room_role is not None])
+
+                # Go through each member in the server and, based on what roles they should have because of the
+                # events they are in, remove any roles they shouldn't have
+                for member in members:
+                    should_have_roles = set()
+                    for room in all_rooms:
+                        if room.check_player(member) is not None:
+                            should_have_roles.add(room.room_role)
+                    should_not_have_roles = set(tier_roles) - should_have_roles
+                    member_roles = set(member.roles)
+                    roles_to_remove = should_not_have_roles.intersection(member_roles)
+                    if len(roles_to_remove) > 0:
+                        try:
+                            await member.remove_roles(*roles_to_remove)
+                        except:
+                            print(traceback.format_exc())
+
+        except Exception as e:
+            print(traceback.format_exc())
+
     @tasks.loop(minutes=3)
-    async def check_room_channels_task(self):
+    async def check_room_threads_task(self):
         try:
             if self.ongoing_event is not None:
-                await self.check_room_channels(self.ongoing_event)
+                await self.check_room_threads(self.ongoing_event)
         except:
             print(traceback.format_exc())
 
@@ -1317,7 +1391,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             if common.SERVER is common.Server.MK8DX:
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
-                member = await self.bot.fetch_user(433353529655296011)
+                member = await self.GUILD.fetch_member(1114699357179088917)
         for i, rating in enumerate(ratings, 1):
             if common.is_int(rating):
                 player = Player(member, f"{member.name} {i}", int(
