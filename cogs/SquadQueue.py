@@ -990,13 +990,15 @@ class SquadQueue(commands.Cog):
         proposed_list = mogi.generate_proposed_list(self.allowed_players_check)
         await mogi.populate_host_fcs()
         for room_number, room_players in enumerate(divide_chunks(proposed_list, mogi.players_per_room), 1):
-            msg = f"`Room {room_number} - Player List`\n"
+            mogi_channel_msg = f"`Room {room_number} - Player List`\n"
+            room_msg = mogi_channel_msg
             for player_num, player in enumerate(room_players, 1):
                 added_str = ": **Added from late players**" if player in late_player_list else ""
                 adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
-                msg += f"""`{player_num}.` {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR){added_str}\n"""
+                mogi_channel_msg += f"`{player_num}.` {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR){added_str}\n"
+                room_msg += f"`{player_num}.` {player.lounge_name} ({player.mmr} MMR)\n"
             if not self.allowed_players_check(room_players):
-                msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
+                mogi_channel_msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
                 curr_room = mogi.rooms[room_number - 1]
                 curr_room.teams = [Team([p]) for p in room_players]
@@ -1005,15 +1007,14 @@ class SquadQueue(commands.Cog):
                 extra_member_mentions = " ".join(
                     [m.mention for m in extra_members if m is not None])
 
-                room_msg = ""
                 if common.SERVER is common.Server.MKW:
-                    room_msg += f"""{msg}
+                    room_msg += f"""
 Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
 {player_mentions} {extra_member_mentions}
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
                 elif common.SERVER is common.Server.MK8DX:
-                    room_msg += f"""{msg}
+                    room_msg += f"""
 Vote for format FFA, 2v2, 3v3, 4v4.
 {player_mentions} {extra_member_mentions}
 
@@ -1046,11 +1047,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 except discord.DiscordException:
                     err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
                     err_msg += player_mentions + extra_member_mentions
-                    msg += err_msg
+                    mogi_channel_msg += err_msg
                     print(traceback.format_exc())
 
             try:
-                await mogi.mogi_channel.send(msg)
+                await mogi.mogi_channel.send(mogi_channel_msg)
             except discord.DiscordException:
                 print(
                     f"Mogi Channel message for room {room_number} has failed to send.", flush=True)
@@ -1060,13 +1061,13 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         not_in_proposed_list = [
             p for p in all_confirmed_players if p not in proposed_list]
         if len(not_in_proposed_list) > 0:
-            msg = "`Late players:`\n"
+            mogi_channel_msg = "`Late players:`\n"
             for i, player in enumerate(not_in_proposed_list, 1):
                 removed_str = ": **Removed from player list**" if player in regular_player_list else ""
                 adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
-                msg += f"`{i}.` {player.lounge_name} ({int(player.mmr)} {adjusted_mmr_text}MMR) {removed_str}\n"
+                mogi_channel_msg += f"`{i}.` {player.lounge_name} ({int(player.mmr)} {adjusted_mmr_text}MMR) {removed_str}\n"
             try:
-                await mogi.mogi_channel.send(msg)
+                await mogi.mogi_channel.send(mogi_channel_msg)
             except discord.DiscordException:
                 print("Late Player message has failed to send.", flush=True)
                 print(traceback.format_exc())
