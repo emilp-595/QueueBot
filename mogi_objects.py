@@ -564,18 +564,18 @@ class VoteView(View):
         room_open_time = self.mogi.making_rooms_run_time
         potential_host_str = self.room.get_host_str()
         if potential_host_str == "":
-            if common.SERVER.MK8DX:
-                msg += f"\nDecide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+            if common.SERVER is common.Server.MK8DX:
+                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
             elif common.SERVER.MKW:
-                msg += f"\nDecide a host amongst yourselves; penalty is {self.penalty_time.minute} minutes after the room opens. Good luck!"
+                msg += f"\nPenalty is {self.penalty_time} minutes after the room opens. Good luck!"
         else:
-            if common.SERVER.MK8DX:
-                msg += f"{potential_host_str}\n\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+            if common.SERVER is common.Server.MK8DX:
+                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
             else:
                 cur_time = datetime.now(timezone.utc)
-                room_open_time = cur_time + timedelta(minutes=2)
+                mkw_room_open_time = cur_time + timedelta(minutes=1)
                 pen_time = cur_time + timedelta(minutes=self.penalty_time)
-                msg += f"{potential_host_str}\n\nRoom open at :{room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
+                msg += f"\nRoom open at :{mkw_room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
 
         room.teams = teams
 

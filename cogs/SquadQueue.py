@@ -1022,18 +1022,18 @@ class SquadQueue(commands.Cog):
                 extra_member_mentions = " ".join(
                     [m.mention for m in extra_members if m is not None])
 
-                if common.SERVER is common.Server.MKW:
-                    room_msg += f"""
-Vote for format FFA, 2v2, 3v3, 4v4, or 6v6.
+                potential_host_str = curr_room.get_host_str()
+                if potential_host_str == "":
+                    potential_host_str += f"No one in the room queued as host. Decide a host amongst yourselves."
+                vote_formats = "FFA, 2v2, 3v3, 4v4" if common.SERVER is common.Server.MK8DX else "FFA, 2v2, 3v3, 4v4, 6v6"
+                room_msg += f"""
+{potential_host_str}
+
+Vote for format {vote_formats}.
 {player_mentions} {extra_member_mentions}
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
-                elif common.SERVER is common.Server.MK8DX:
-                    room_msg += f"""
-Vote for format FFA, 2v2, 3v3, 4v4.
-{player_mentions} {extra_member_mentions}
 
-If you need staff's assistance, use the `/ping_staff` command in this channel."""
                 # The below try/except clause around Room.prepare_room_channel only runs if the config's USE_THREADS is set to false
                 try:
                     await curr_room.prepare_room_channel(self.GUILD, all_events=([self.ongoing_event] + self.old_events))
