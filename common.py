@@ -1,6 +1,7 @@
 import json
 from enum import Enum, auto
 from typing import TypeVar, Type, List
+import config_checker
 
 _T = TypeVar('_T')
 
@@ -40,3 +41,5 @@ def is_int(var: str) -> bool:
         return True
     except ValueError:
         return False
+
+config_checker.check(CONFIG)
