@@ -26,7 +26,7 @@ headers = {'Content-type': 'application/json'}
 # Scheduled_Event = collections.namedtuple('Scheduled_Event', 'size time started mogi_channel')
 
 cooldowns = defaultdict(int)
-MMR_THRESHOLD_PKL = "mmr_threshold.pkl"
+STAFF_SETTINGS_PKL = "staff_settings.pkl"
 
 
 def is_restricted(user: discord.User | discord.Member) -> bool:
@@ -50,6 +50,80 @@ def mkw_players_allowed(players: List[Player], threshold: int) -> bool:
 def mk8dx_players_allowed(players: List[Player], threshold: int) -> bool:
     """Returns true if the given list of players would be allowed to play together"""
     return basic_threshold_players_allowed(players, threshold)
+
+
+@app_commands.guild_only()
+class SettingsGroup(app_commands.Group):
+    def __init__(self, squad_queue: SquadQueue, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.squad_queue: SquadQueue = squad_queue
+
+    @app_commands.guild_only()
+    @app_commands.command(name="mmr_threshold", description="Change the maximum MMR gap allowed for a room.")
+    @app_commands.describe(mmr_range="The maximum range allowed for a room. Rooms with a range larger than this will be cancelled.")
+    async def mmr_threshold(self, interaction: discord.Interaction, mmr_range: int):
+        self.squad_queue.room_mmr_threshold = mmr_range
+        self.squad_queue.dump_staff_settings()
+        await interaction.response.send_message(f"MMR Threshold for Queue Rooms has been modified to {mmr_range} MMR.")
+
+    @app_commands.command(name="time_between_events", description="Change the amount of time between each queue opening.")
+    @app_commands.describe(event_time="Amount of time between each queue's opening.")
+    @app_commands.guild_only()
+    async def time_between_events(self, interaction: discord.Interaction, event_time: int):
+        if event_time > 15:
+            self.squad_queue.QUEUE_OPEN_TIME = timedelta(minutes=event_time)
+            self.squad_queue.JOINING_TIME = timedelta(
+                minutes=event_time) - self.squad_queue.EXTENSION_TIME
+            self.squad_queue.dump_staff_settings()
+            await interaction.response.send_message(
+                f"The amount of time for each mogi has been changed to {event_time} minutes.")
+        else:
+            await interaction.response.send_message("Please enter a number of minutes greater than 15.")
+
+    @app_commands.guild_only()
+    @app_commands.command(name="low_mmr_floor", description="Players below this rating will be considered this rating for matchmaking/sub purposes.")
+    @app_commands.describe(rating="Players below this rating will be considered this rating for matchmaking/sub purposes.")
+    async def low_mmr_floor(self, interaction: discord.Interaction, rating: int):
+        common.CONFIG["MATCHMAKING_BOTTOM_MMR"] = rating
+        self.squad_queue.dump_staff_settings()
+        await interaction.response.send_message(f"Players below {rating} MMR will be considered {rating} MMR for matchmaking and subbing in purposes.")
+
+    @app_commands.guild_only()
+    @app_commands.command(name="high_mmr_ceiling", description="Players above this rating will be considered this rating for matchmaking/sub purposes.")
+    @app_commands.describe(rating="Players above this rating will be considered this rating for matchmaking/sub purposes.")
+    async def high_mmr_ceiling(self, interaction: discord.Interaction, rating: int):
+        common.CONFIG["MATCHMAKING_TOP_MMR"] = rating
+        self.squad_queue.dump_staff_settings()
+        await interaction.response.send_message(f"Players above {rating} MMR will be considered {rating} MMR for matchmaking and subbing in purposes.")
+
+    @app_commands.guild_only()
+    @app_commands.command(name="first_event_open_time", description="Use to shift schedule.")
+    @app_commands.describe(minutes="The number of minutes AFTER 0:00 UTC that your first queue of the day would open.")
+    async def first_event_open_time(self, interaction: discord.Interaction, minutes: int):
+        old_amount = common.CONFIG["FIRST_EVENT_TIME"]
+        shift = minutes - old_amount
+        common.CONFIG["FIRST_EVENT_TIME"] = minutes
+        self.squad_queue.FIRST_EVENT_TIME = datetime.combine(datetime.utcnow().date(), datetime.min.time(),
+                                                 tzinfo=timezone.utc) + timedelta(minutes=common.CONFIG["FIRST_EVENT_TIME"])
+        self.squad_queue.dump_staff_settings()
+        await interaction.response.send_message(f"Changed first queue of the day's open time to {minutes} minutes after 0:00 UTC, which will shift all events by {shift} minutes.")
+
+    @app_commands.guild_only()
+    @app_commands.command(name="sub_range_allowance", description="Buffer from the lowest and highest player that someone's rating could be to be allowed to sub in.")
+    @app_commands.describe(buffer="The buffer. E.g. 500 buffer, low mmr 2000, high mmr 6000, so allowed range 1500-6500")
+    async def sub_range_allowance(self, interaction: discord.Interaction, buffer: int):
+        self.squad_queue.SUB_RANGE_MMR_ALLOWANCE = buffer
+        self.squad_queue.dump_staff_settings()
+        await interaction.response.send_message(f"Players rated higher than {buffer} below a room's lowest player and lower than {buffer} above a room's highest player will be allowed to sub into the room.")
+
+    @app_commands.guild_only()
+    @app_commands.command(name="placement_rating", description="Rating for placement players when they queue.")
+    @app_commands.describe(rating="The placement players' rating.")
+    async def placement_rating(self, interaction: discord.Interaction, rating: int):
+        self.squad_queue.PLACEMENT_PLAYER_MMR = rating
+        common.CONFIG["PLACEMENT_PLAYER_MMR"] = rating
+        self.squad_queue.dump_staff_settings()
+        await interaction.response.send_message(f"Placement players' rating will be {rating} MMR when they queue.")
 
 
 class SquadQueue(commands.Cog):
@@ -108,12 +182,6 @@ class SquadQueue(commands.Cog):
         self.SUB_MESSAGE_LIFETIME_SECONDS = bot.config["SUB_MESSAGE_LIFETIME_SECONDS"]
 
         self.room_mmr_threshold = bot.config["ROOM_MMR_THRESHOLD"]
-        if os.path.isfile(MMR_THRESHOLD_PKL):
-            try:
-                with open(MMR_THRESHOLD_PKL, 'rb') as f:
-                    self.room_mmr_threshold = dill.load(f)
-            except:
-                print(traceback.format_exc())
 
         self.TRACK_TYPE = bot.config["track_type"]
 
@@ -140,7 +208,7 @@ class SquadQueue(commands.Cog):
 
         # If we're testing, set the time to the current time so we start a new event immediately
         if not self.is_production:
-            self.FIRST_EVENT_TIME = datetime.now(timezone.utc)
+            self.FIRST_EVENT_TIME = datetime.now(timezone.utc).replace(second=0, microsecond=0)
 
         with open('./timezones.json', 'r') as cjson:
             self.timezones = json.load(cjson)
@@ -151,6 +219,53 @@ class SquadQueue(commands.Cog):
         self.helper_staff_roles: Dict[str, discord.Role] = {}
 
         self.ratings = mmr.Ratings()
+
+        self.load_staff_settings()
+
+    def load_staff_settings(self, view_only=False):
+        if os.path.isfile(STAFF_SETTINGS_PKL):
+            try:
+                with open(STAFF_SETTINGS_PKL, 'rb') as f:
+                    settings_dict = dill.load(f)
+                    if view_only:
+                        print(settings_dict)
+                        return
+                    if "ROOM_MMR_THRESHOLD" in settings_dict:
+                        self.room_mmr_threshold = settings_dict["ROOM_MMR_THRESHOLD"]
+                    if "QUEUE_OPEN_TIME" in settings_dict:
+                        self.QUEUE_OPEN_TIME = settings_dict["QUEUE_OPEN_TIME"]
+                    if "JOINING_TIME" in settings_dict:
+                        self.JOINING_TIME = settings_dict["JOINING_TIME"]
+                    if "MATCHMAKING_BOTTOM_MMR" in settings_dict:
+                        common.CONFIG["MATCHMAKING_BOTTOM_MMR"] = settings_dict["MATCHMAKING_BOTTOM_MMR"]
+                    if "MATCHMAKING_TOP_MMR" in settings_dict:
+                        common.CONFIG["MATCHMAKING_TOP_MMR"] = settings_dict["MATCHMAKING_TOP_MMR"]
+                    if "FIRST_EVENT_TIME" in settings_dict:
+                        common.CONFIG["FIRST_EVENT_TIME"] = settings_dict["FIRST_EVENT_TIME"]
+                        self.FIRST_EVENT_TIME = datetime.combine(datetime.utcnow().date(), datetime.min.time(),
+                                         tzinfo=timezone.utc) + timedelta(minutes=settings_dict["FIRST_EVENT_TIME"])
+                    if "SUB_RANGE_MMR_ALLOWANCE" in settings_dict:
+                        self.SUB_RANGE_MMR_ALLOWANCE = settings_dict["SUB_RANGE_MMR_ALLOWANCE"]
+                    if "PLACEMENT_PLAYER_MMR" in settings_dict:
+                        self.PLACEMENT_PLAYER_MMR = settings_dict["PLACEMENT_PLAYER_MMR"]
+                        common.CONFIG["PLACEMENT_PLAYER_MMR"] = settings_dict["PLACEMENT_PLAYER_MMR"]
+            except:
+                print(traceback.format_exc())
+
+    def dump_staff_settings(self):
+        settings_dict = {"ROOM_MMR_THRESHOLD": self.room_mmr_threshold,
+                         "QUEUE_OPEN_TIME": self.QUEUE_OPEN_TIME,
+                         "JOINING_TIME": self.JOINING_TIME,
+                         "SUB_RANGE_MMR_ALLOWANCE": self.SUB_RANGE_MMR_ALLOWANCE,
+                         "MATCHMAKING_BOTTOM_MMR": common.CONFIG["MATCHMAKING_BOTTOM_MMR"],
+                         "MATCHMAKING_TOP_MMR": common.CONFIG["MATCHMAKING_TOP_MMR"],
+                         "FIRST_EVENT_TIME": common.CONFIG["FIRST_EVENT_TIME"],
+                         "PLACEMENT_PLAYER_MMR": self.PLACEMENT_PLAYER_MMR}
+        try:
+            with open(STAFF_SETTINGS_PKL, 'wb') as f:
+                dill.dump(settings_dict, f)
+        except:
+            print(traceback.format_exc())
 
 
     @commands.Cog.listener()
@@ -178,6 +293,9 @@ class SquadQueue(commands.Cog):
         except:
             print("Purging Sub channel failed", flush=True)
             print(traceback.format_exc())
+
+        settings_group = SettingsGroup(self, name="settings", description="Change bot configuration. Staff use only.")
+        self.bot.tree.add_command(settings_group)
         print(f"Server - {self.GUILD}", flush=True)
         print(f"Join Channel - {self.MOGI_CHANNEL}", flush=True)
         print(f"Sub Channel - {self.SUB_CHANNEL}", flush=True)
@@ -709,31 +827,6 @@ class SquadQueue(commands.Cog):
         self.LAUNCH_NEW_EVENTS = True
         await interaction.response.send_message("Mogis will resume scheduling.")
 
-    @app_commands.command(name="change_event_time")
-    @app_commands.guild_only()
-    async def change_event_time(self, interaction: discord.Interaction, event_time: int):
-        """Change the amount of time for each event in the queue.  Staff use only."""
-        if event_time > 15:
-            self.QUEUE_OPEN_TIME = timedelta(minutes=event_time)
-            self.JOINING_TIME = timedelta(
-                minutes=event_time) - self.EXTENSION_TIME
-            await interaction.response.send_message(
-                f"The amount of time for each mogi has been changed to {event_time} minutes.")
-        else:
-            await interaction.response.send_message("Please enter a number of minutes greater than 15.")
-
-    @app_commands.command(name="change_mmr_threshold")
-    @app_commands.guild_only()
-    async def change_mmr_threshold(self, interaction: discord.Interaction, mmr_threshold: int):
-        """Change the maximum MMR gap allowed for a room.  Staff use only."""
-        self.room_mmr_threshold = mmr_threshold
-        try:
-            with open(MMR_THRESHOLD_PKL, 'wb') as f:
-                dill.dump(self.room_mmr_threshold, f)
-        except:
-            print(traceback.format_exc())
-        await interaction.response.send_message(f"MMR Threshold for Queue Rooms has been modified to {mmr_threshold} MMR.")
-
     @app_commands.command(name="peek_bot_config")
     @app_commands.guild_only()
     async def peek_bot_config(self, interaction: discord.Interaction):
@@ -788,7 +881,9 @@ class SquadQueue(commands.Cog):
         msg += f"EVENT LIFETIME: {self.MOGI_LIFETIME} minutes\n"
         msg += f"EXTRA SUB RANGE ALLOWANCE: +- {self.SUB_RANGE_MMR_ALLOWANCE} MMR\n"
         msg += f"SUB MESSAGE LIFETIME: {self.SUB_MESSAGE_LIFETIME_SECONDS} seconds\n"
-        msg += f"ROOM MMR THRESHOLD: {self.room_mmr_threshold}"
+        msg += f"ROOM MMR THRESHOLD: {self.room_mmr_threshold}\n"
+        msg += f"MATCHMAKING BOTTOM MMR: {common.CONFIG['MATCHMAKING_BOTTOM_MMR']}\n"
+        msg += f"MATCHMAKING TOP MMR: {common.CONFIG['MATCHMAKING_TOP_MMR']}"
         await interaction.response.send_message(msg)
 
     @app_commands.command(name="reset_bot")
