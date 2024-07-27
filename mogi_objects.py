@@ -487,7 +487,7 @@ class Player:
 class VoteView(View):
     def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int):
         super().__init__()
-        self.players = players
+        self.players: List[Player] = players
         self.room_channel: discord.Thread | discord.TextChannel = thread
         self.mogi = mogi
         self.room = room
@@ -629,6 +629,9 @@ class VoteView(View):
 
     async def general_vote_callback(self, interaction: discord.Interaction):
         if not self.found_winner:
+            if str(interaction.user.id) not in [p.member.id for p in self.players]:
+                await interaction.response.send_message("You are not a player in this event.", ephemeral=True)
+                return
             vote = interaction.data['custom_id']
             players_per_team = 1
             if vote != "FFA":
