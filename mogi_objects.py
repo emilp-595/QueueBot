@@ -629,7 +629,7 @@ class VoteView(View):
 
     async def general_vote_callback(self, interaction: discord.Interaction):
         if not self.found_winner:
-            if str(interaction.user.id) not in [p.member.id for p in self.players]:
+            if interaction.user.id not in [p.member.id for p in self.players]:
                 await interaction.response.send_message("You are not a player in this event.", ephemeral=True)
                 return
             vote = interaction.data['custom_id']
