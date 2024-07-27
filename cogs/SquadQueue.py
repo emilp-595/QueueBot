@@ -1398,7 +1398,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 for member in members:
                     should_have_roles = set()
                     for room in all_rooms:
-                        if room.check_player(member) is not None:
+                        if room.check_player(member) is not None or member.id in room.subs:
                             should_have_roles.add(room.room_role)
                     should_not_have_roles = set(tier_roles) - should_have_roles
                     member_roles = set(member.roles)
