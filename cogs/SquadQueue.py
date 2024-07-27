@@ -26,7 +26,7 @@ headers = {'Content-type': 'application/json'}
 # Scheduled_Event = collections.namedtuple('Scheduled_Event', 'size time started mogi_channel')
 
 cooldowns = defaultdict(int)
-STAFF_SETTINGS_PKL = "staff_settings.pkl"
+STAFF_SETTINGS_PKL = "./settings_data/staff_settings.pkl"
 
 
 def is_restricted(user: discord.User | discord.Member) -> bool:
