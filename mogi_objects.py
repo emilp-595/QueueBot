@@ -687,10 +687,11 @@ class JoinView(View):
             self.room.subs.append(interaction.user.id)
             button.disabled = True
             await interaction.response.edit_message(view=self)
-            try:
-                await self.room.assign_member_room_role(interaction.user)
-            except RoleAddFailure as e:
-                self.room.channel.send(str(e))
+            if not common.CONFIG["USE_THREADS"]:
+                try:
+                    await self.room.assign_member_room_role(interaction.user)
+                except RoleFailure as e:
+                    self.room.channel.send(str(e))
             mention = interaction.user.mention
             await self.room.channel.send(f"{mention} has joined the room.")
         else:
