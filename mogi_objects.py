@@ -1,13 +1,39 @@
 from __future__ import annotations
 
+import traceback
 import common
+from contextlib import suppress
 from common import flatten
 import random
 import discord
 from datetime import datetime, timezone, timedelta
 from discord.ui import View
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Set
 import host_fcs
+
+
+class PrepFailure(Exception):
+    pass
+
+
+class WrongChannelType(TypeError, PrepFailure):
+    pass
+
+
+class RoleFailure(PrepFailure):
+    pass
+
+
+class RoleAddFailure(RoleFailure):
+    pass
+
+
+class RoleNotFound(RoleFailure):
+    pass
+
+
+class NoFreeChannels(PrepFailure):
+    pass
 
 
 def average(list_: List[int | float]) -> float:
@@ -38,6 +64,7 @@ class Mogi:
         self.display_time = display_time if is_automated else None
         self.additional_extension = timedelta(
             minutes=additional_extension_minutes)
+        self.has_checked_auto_extend = False
 
     @property
     def num_players(self):
@@ -68,45 +95,16 @@ class Mogi:
         sorted_players = sorted(players)
         # In the beginning, the best found collection of players is the first 12
         best_collection = sorted_players[0:num_players]
-        cur_min = best_collection[-1].mmr - best_collection[0].mmr
+        cur_min = best_collection[-1].adjusted_mmr - best_collection[0].adjusted_mmr
         # Find the collection of players with the least rating spread
         for lowest_player_index, highest_player in enumerate(sorted_players[num_players:], 1):
             lowest_player = sorted_players[lowest_player_index]
-            cur_range = highest_player.mmr - lowest_player.mmr
+            cur_range = highest_player.adjusted_mmr - lowest_player.adjusted_mmr
             if cur_range < cur_min:
                 cur_min = cur_range
                 best_collection = sorted_players[lowest_player_index:
                                                  lowest_player_index + num_players]
         return best_collection
-
-    def _OLD_all_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[List[Player]], int]:
-        if self.max_possible_rooms == 0:
-            return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
-        all_confirmed_players = self.players_on_confirmed_teams()
-        first_late_player_index = (self.num_players // self.players_per_room) * self.players_per_room
-        on_time_players = sorted(all_confirmed_players[:first_late_player_index], reverse=True)
-        late_players = all_confirmed_players[first_late_player_index:]
-        player_rooms: List[List[Player]] = list(common.divide_chunks(on_time_players, self.players_per_room))
-
-        any_invalid = False
-        for pr_index, player_room in enumerate(player_rooms, 0):
-            for lp_index in range(len(late_players)+1):
-                current_late_check_players = late_players[0:lp_index]
-                best_collection = Mogi._minimize_range(player_room + current_late_check_players, self.players_per_room)
-                if valid_players_check(best_collection):
-                    best_collection.sort(reverse=True)
-                    # Get all the players who were swapped out of the room and put them at the front of the late player list
-                    swapped_out_players = [p for p in player_room if p not in best_collection]
-                    swapped_in_players = [p for p in best_collection if p not in player_room]
-                    late_players = swapped_out_players + list(filter(lambda p: p not in swapped_in_players, late_players))
-                    player_rooms[pr_index] = best_collection
-                    break
-            else:
-                # After checking all late players, no room player list with a valid range could be found for this room
-                any_invalid = True
-
-        return player_rooms, (Mogi.ALGORITHM_STATUS_SUCCESS_SOME_INVALID if any_invalid else Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
-
 
     def _all_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[List[Player]], int]:
         if self.max_possible_rooms == 0:
@@ -217,15 +215,17 @@ class Mogi:
     def players_on_confirmed_teams(self) -> List[Player]:
         return flatten([team.players for team in self.confirmed_teams()])
 
-    def is_room_thread(self, channel_id: int):
-        for room in self.rooms:
-            if room.thread.id == channel_id:
-                return True
-        return False
+    def all_room_channel_ids(self) -> Set[int]:
+        return {r.channel.id for r in self.rooms if r is not None and r.channel is not None}
 
-    def get_room_from_thread(self, channel_id: int):
+    def channel_id_in_rooms(self, channel_id: int):
+        return channel_id in self.all_room_channel_ids()
+
+    def get_room_from_channel_id(self, channel_id: int):
         for room in self.rooms:
-            if room.thread.id == channel_id:
+            if room is None or room.channel is None:
+                continue
+            if room.channel.id == channel_id:
                 return room
         return None
 
@@ -238,34 +238,67 @@ class Mogi:
             if player is not None:
                 player.host_fc = host_fc
 
+    async def assign_roles(self, guild: discord.Guild):
+        for room in self.rooms:
+            try:
+                to_skip = None if room.room_role is None else {room.room_role.id}
+                await room.assign_roles(guild=guild, role_skip=to_skip)
+            except RoleAddFailure:
+                pass
+
+
 
 class Room:
-    def __init__(self, teams, room_num: int, thread: discord.Thread):
+    def __init__(self, teams, room_num: int, channel: discord.Thread | discord.TextChannel, tier_info):
         self.teams: List["Team"] = teams
         self.room_num = room_num
-        self.thread = thread
+        self.channel = channel
         self.view = None
         self.finished = False
         self.host_list: List["Player"] = []
         self.subs: List[int] = []
+        self.tier_info = tier_info
+        self.room_role = None
+
+    @property
+    def tier(self) -> str:
+        if common.SERVER is common.Server.MK8DX:
+            return get_tier_mk8dx(round(self.avg_mmr) - 500)
+        if common.SERVER is common.Server.MKW:
+            return str(get_tier_mkw(self.avg_mmr, self.tier_info))
+
+    @property
+    def tier_collection(self) -> str:
+        if common.SERVER is common.Server.MK8DX:
+            return self.tier
+        if common.SERVER is common.Server.MKW:
+            tier_number = self.tier
+            if not common.is_int(tier_number):
+                return "HT"
+            tier_number = int(tier_number)
+            if tier_number <= 2:
+                return "LT"
+            if tier_number >= 5:
+                return "HT"
+            return "MT"
 
     @property
     def mmr_high(self) -> int:
         if self.teams is None:
             return None
-        return max(self.players).mmr
+        return max(self.players).adjusted_mmr
 
     @property
     def mmr_low(self) -> int:
         if self.teams is None:
             return None
-        return min(self.players).mmr
+        return min(self.players).adjusted_mmr
 
     @property
-    def avg_mmr(self) -> float:
+    def avg_mmr(self) -> int:
         if self.teams is None:
             return 0
-        return average([p.mmr for p in self.players])
+        return int(average([p.mmr for p in self.players]))
 
     @property
     def players(self) -> List[Player]:
@@ -295,6 +328,72 @@ class Room:
         if common.SERVER is common.Server.MKW and self.host_list[0].host_fc is not None:
             result += f"\n**Host ({self.host_list[0].member.display_name}) Friend Code: {self.host_list[0].host_fc}**"
         return result
+
+    def check_player(self, member):
+        if self.teams is None:
+            return None
+        for team in self.teams:
+            if team.has_player(member):
+                return team
+        return None
+
+    async def assign_member_room_role(self, member: discord.Member):
+        if self.room_role is None:
+            raise RoleNotFound(f"Could not find role for tier {self.tier}")
+        try:
+            await member.add_roles(self.room_role)
+        except:
+            raise RoleAddFailure(f"Failed to add role {self.room_role.name} to {member}\n")
+
+    async def assign_roles(self, guild: discord.Guild, role_skip=None):
+        role_add_fail_text = ""
+        role_skip = set() if role_skip is None else set(role_skip)
+        for player in self.players:
+            updated_member = guild.get_member(player.member.id)
+            if updated_member is not None:
+                member_role_ids = {r.id for r in updated_member.roles}
+                if len(role_skip.intersection(member_role_ids)) > 0:
+                    continue
+            try:
+                await self.assign_member_room_role(player.member)
+            except RoleAddFailure:
+                role_add_fail_text += f"Failed to add role {self.room_role.name} to {player.member}\n"
+                print(traceback.format_exc())
+
+        if role_add_fail_text != "":
+            await self.channel.send(role_add_fail_text)
+            raise RoleAddFailure(role_add_fail_text)
+
+    async def prepare_room_channel(self, guild: discord.Guild, all_events: List[Mogi | None]):
+        if common.CONFIG["USE_THREADS"]:
+            return
+        
+        # Find the available tier channels for the tier (collection)
+        tier_collection = self.tier_collection
+        tier_data = common.CONFIG["TIER_CHANNELS"][tier_collection]
+        free_tier_channel_ids = list(tier_data["channel_ids"])
+        for event in all_events:
+            if event is None:
+                continue
+            for channel_id in event.all_room_channel_ids():
+                with suppress(ValueError):
+                    free_tier_channel_ids.remove(channel_id)
+        # If there are no available tier channels, raise an exception
+        if len(free_tier_channel_ids) == 0:
+            raise NoFreeChannels(f"No free channels for tier {tier_collection}")
+        
+        # Get the discord.GuildChannel of the first available channel id
+        found_channel = guild.get_channel(free_tier_channel_ids[0])
+        if not isinstance(found_channel, discord.TextChannel):
+            raise WrongChannelType(f"For tier {tier_collection}, channel id {channel_id} is of type {type(found_channel)}, expected discord.TextChannel")
+        self.channel = found_channel
+
+        # Assign the role for the tier collection to all players in the room so they can see the tier
+        tier_role_id = tier_data["tier_role_id"]
+        self.room_role = guild.get_role(tier_role_id)
+        if self.room_role is None:
+            raise RoleNotFound(f"Could not find role for role id {tier_role_id} for tier {tier_collection}")
+        await self.assign_roles(guild=guild, role_skip=tier_data["role_ids_can_see_already"]+[tier_role_id])
 
 
 class Team:
@@ -356,6 +455,22 @@ class Player:
         self.host_fc = None
 
     @property
+    def adjusted_mmr(self):
+        minimum_mmr = common.CONFIG["MATCHMAKING_BOTTOM_MMR"]
+        maximum_mmr = common.CONFIG["MATCHMAKING_TOP_MMR"]
+        if minimum_mmr is None or maximum_mmr is None:
+            return self.mmr
+        if self.mmr < minimum_mmr:
+            return minimum_mmr
+        if self.mmr > maximum_mmr:
+            return maximum_mmr
+        return self.mmr
+
+    @property
+    def is_matchmaking_mmr_adjusted(self):
+        return self.mmr != self.adjusted_mmr
+
+    @property
     def mention(self):
         """String that, when sent in a Discord message, will mention and ping the player."""
         if self.member is None:
@@ -370,17 +485,16 @@ class Player:
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int, tier_info):
+    def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int):
         super().__init__()
-        self.players = players
-        self.thread: discord.Thread = thread
+        self.players: List[Player] = players
+        self.room_channel: discord.Thread | discord.TextChannel = thread
         self.mogi = mogi
         self.room = room
         self.header_text = ""
         self.teams_text = ""
         self.found_winner = False
         self.penalty_time = penalty_time
-        self.tier_info = tier_info
         self.votes = {"FFA": [],
                       "2v2": [],
                       "3v3": [],
@@ -396,15 +510,17 @@ class VoteView(View):
         if common.SERVER is common.Server.MKW:
             self.add_button("6v6", self.general_vote_callback)
 
-    async def make_teams(self, format_):
+    async def make_teams(self, players_per_team: int, vote_str: str):
         if common.SERVER is common.Server.MKW:
             self.mogi.making_rooms_run_time = datetime.now(timezone.utc)
+            if vote_str == "6v6":
+                players_per_team = 1
         elif common.SERVER is common.Server.MK8DX:
             self.mogi.making_rooms_run_time = self.mogi.start_time + \
                 timedelta(minutes=5)
         random.shuffle(self.players)
 
-        room = self.mogi.get_room_from_thread(self.thread.id)
+        room = self.mogi.get_room_from_channel_id(self.room_channel.id)
 
         msg = f"""**Poll Ended!**
 
@@ -415,21 +531,17 @@ class VoteView(View):
 """
         if common.SERVER is common.Server.MKW:
             msg += f"5) 6v6 - {len(self.votes['6v6'])}\n"
-        msg += f"Winner: {format_[1]}\n\n"
+        msg += f"Winner: {vote_str}\n\n"
 
-        room_mmr = round(sum([p.mmr for p in self.players]) / 12)
-        room.mmr_average = room_mmr
         self.header_text = ""
-        if common.SERVER is common.Server.MKW:
-            self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - T{get_tier(room_mmr, self.tier_info)}** "
-        elif common.SERVER is common.Server.MK8DX:
-            self.header_text += f"**Room {room.room_num} MMR: {room_mmr} - Tier {get_tier_mk8dx(room_mmr - 500)}** "
+        tier_text = "Tier " if common.SERVER is common.Server.MK8DX else "T"
+        self.header_text += f"**Room {room.room_num} MMR: {room.avg_mmr} - {tier_text}{room.tier}** "
         msg += self.header_text + "\n"
 
         teams = []
-        teams_per_room = int(12 / format_[0])
+        teams_per_room = 12 // players_per_team
         for j in range(teams_per_room):
-            team = Team(self.players[j * format_[0]:(j + 1) * format_[0]])
+            team = Team(self.players[j * players_per_team:(j + 1) * players_per_team])
             teams.append(team)
 
         teams.sort(key=lambda team: team.avg_mmr, reverse=True)
@@ -447,36 +559,50 @@ class VoteView(View):
 
         if common.SERVER is common.Server.MK8DX:
             msg += f"\nTable: `/scoreboard`\n"
-
             msg += f"RandomBot Scoreboard: `/scoreboard {teams_per_room} {', '.join(scoreboard_text)}`\n\n"
+        elif common.SERVER is common.Server.MKW and vote_str == "6v6":
+            captain_1 = teams[0].players[0]
+            captain_2 = teams[1].players[0]
+            msg += f"\nCaptain #1: **{captain_1.lounge_name}**\n"
+            msg += f"Captain #2: **{captain_2.lounge_name}**\n"
+            msg += f"""Draft instructions:
+1. **{captain_1.lounge_name}** picks 1 player
+2. **{captain_2.lounge_name}** picks 2 players
+3. **{captain_1.lounge_name}** picks 2 players
+4. **{captain_2.lounge_name}** picks 2 players
+5. **{captain_1.lounge_name}** picks 2 players
+6. **{captain_2.lounge_name}** picks 2 players
+7. **{captain_1.lounge_name}** picks 1 player\n"""
 
         penalty_time = self.mogi.making_rooms_run_time + \
             timedelta(minutes=self.penalty_time)
         room_open_time = self.mogi.making_rooms_run_time
         potential_host_str = self.room.get_host_str()
         if potential_host_str == "":
-            msg += f"\nDecide a host amongst yourselves; room open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+            if common.SERVER is common.Server.MK8DX:
+                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+            elif common.SERVER.MKW:
+                msg += f"\nPenalty is {self.penalty_time} minutes after the room opens. Good luck!"
         else:
-            msg += f"{potential_host_str}\n\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+            if common.SERVER is common.Server.MK8DX:
+                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
+            else:
+                cur_time = datetime.now(timezone.utc)
+                mkw_room_open_time = cur_time + timedelta(minutes=1)
+                pen_time = mkw_room_open_time + timedelta(minutes=self.penalty_time)
+                msg += f"\nRoom open at :{mkw_room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
 
         room.teams = teams
 
         self.found_winner = True
-        await self.thread.send(msg)
-        if common.SERVER is common.Server.MKW:
-            new_thread_name = self.thread.name + \
-                f" - T{get_tier(room_mmr, self.tier_info)}"
-            await self.thread.edit(name=new_thread_name)
-        elif common.SERVER is common.Server.MK8DX:
-            new_thread_name = self.thread.name + \
-                f" - Tier {get_tier_mk8dx(room_mmr - 500)}"
-            await self.thread.edit(name=new_thread_name)
+        await self.room_channel.send(msg)
+        if common.CONFIG["USE_THREADS"]:
+            new_thread_name = self.room_channel.name + f" - {tier_text}{room.tier}"
+            await self.room_channel.edit(name=new_thread_name)
 
     async def find_winner(self):
         if not self.found_winner:
-            # for some reason max function wasnt working... # It's because you were replacing it.
             most_votes = len(max(self.votes.values(), key=len))
-
             winners = []
             if len(self.votes["FFA"]) == most_votes:
                 winners.append((1, "FFA"))
@@ -494,7 +620,7 @@ class VoteView(View):
             for curr_button in self.children:
                 curr_button.disabled = True
 
-            await self.make_teams(winner)
+            await self.make_teams(*winner)
 
     def add_button(self, label, callback):
         button = discord.ui.Button(label=f"{label}: 0", custom_id=label)
@@ -503,6 +629,9 @@ class VoteView(View):
 
     async def general_vote_callback(self, interaction: discord.Interaction):
         if not self.found_winner:
+            if interaction.user.id not in [p.member.id for p in self.players]:
+                await interaction.response.send_message("You are not a player in this event.", ephemeral=True)
+                return
             vote = interaction.data['custom_id']
             players_per_team = 1
             if vote != "FFA":
@@ -516,7 +645,7 @@ class VoteView(View):
                 self.votes[vote].append(interaction.user.id)
             if len(self.votes[vote]) == 6:
                 self.found_winner = True  # This fixes a race condition
-                await self.make_teams((players_per_team, vote))
+                await self.make_teams(players_per_team, vote)
             for curr_button in self.children:
                 curr_button.label = f"{curr_button.custom_id}: {len(self.votes[curr_button.custom_id])}"
                 if self.found_winner:
@@ -545,6 +674,8 @@ class JoinView(View):
             return
         try:
             user_mmr = self.get_rating_from_discord_id(interaction.user.id)
+            if isinstance(user_mmr, int):
+                user_mmr = Player(None, "", user_mmr).adjusted_mmr
         except:
             await interaction.response.send_message(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
@@ -556,14 +687,19 @@ class JoinView(View):
             self.room.subs.append(interaction.user.id)
             button.disabled = True
             await interaction.response.edit_message(view=self)
+            if not common.CONFIG["USE_THREADS"]:
+                try:
+                    await self.room.assign_member_room_role(interaction.user)
+                except RoleFailure as e:
+                    self.room.channel.send(str(e))
             mention = interaction.user.mention
-            await self.room.thread.send(f"{mention} has joined the room.")
+            await self.room.channel.send(f"{mention} has joined the room.")
         else:
             await interaction.response.send_message(
                 "You do not meet room requirements", ephemeral=True)
 
 
-def get_tier(mmr: int, tier_info):
+def get_tier_mkw(mmr: int, tier_info):
     for tier in tier_info:
         if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
                 tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
