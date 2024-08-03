@@ -1018,7 +1018,10 @@ class SquadQueue(commands.Cog):
                             f"Skipping room {index} in function write_history.", flush=True)
                         continue
                     msg = room.view.header_text
-                    msg += f"{room.channel.jump_url}\n"
+                    if common.SERVER is common.Server.MKW:
+                        msg += f"{room.view.room_start_msg_link}\n"
+                    elif common.SERVER is common.Server.MK8DX:
+                        msg += f"{room.channel.jump_url}\n"
                     msg += room.view.teams_text
                     msg += "ㅤ"
                     await history_channel.send(msg)
@@ -1148,9 +1151,9 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                     continue
 
                 try:
-                    await curr_room.channel.send(room_msg)
+                    sent_msg = await curr_room.channel.send(room_msg)
                     view = VoteView(room_players, curr_room.channel,
-                                    mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME)
+                                    mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME, sent_msg.jump_url)
                     curr_room.view = view
                     await curr_room.channel.send(view=view)
                 except discord.DiscordException:

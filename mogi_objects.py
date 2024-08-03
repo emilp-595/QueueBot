@@ -485,13 +485,14 @@ class Player:
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int):
+    def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int, room_start_msg_link):
         super().__init__()
         self.players: List[Player] = players
         self.room_channel: discord.Thread | discord.TextChannel = thread
         self.mogi = mogi
         self.room = room
         self.header_text = ""
+        self.room_start_msg_link = room_start_msg_link
         self.teams_text = ""
         self.found_winner = False
         self.penalty_time = penalty_time
