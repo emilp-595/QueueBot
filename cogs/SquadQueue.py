@@ -554,11 +554,10 @@ class SquadQueue(commands.Cog):
                 return room, bottom_room_num
         return None, 1
 
-
     @app_commands.command(name="sub")
     @app_commands.guild_only()
     # @commands.cooldown(rate=1, per=120, type=commands.BucketType.user)
-    async def sub(self, interaction: discord.Interaction, races_left: int):
+    async def sub(self, interaction: discord.Interaction, races_left: app_commands.Range[int, 1, 12]):
         """Sends out a request for a sub in the sub channel. Only works in thread channels for SQ rooms."""
         current_time = time.time()
         lastCommandTime = cooldowns.get(interaction.user.id)
