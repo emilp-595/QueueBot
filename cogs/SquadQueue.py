@@ -554,11 +554,10 @@ class SquadQueue(commands.Cog):
                 return room, bottom_room_num
         return None, 1
 
-
     @app_commands.command(name="sub")
     @app_commands.guild_only()
     # @commands.cooldown(rate=1, per=120, type=commands.BucketType.user)
-    async def sub(self, interaction: discord.Interaction, races_left: int):
+    async def sub(self, interaction: discord.Interaction, races_left: app_commands.Range[int, 1, 12]):
         """Sends out a request for a sub in the sub channel. Only works in thread channels for SQ rooms."""
         current_time = time.time()
         lastCommandTime = cooldowns.get(interaction.user.id)
@@ -1019,7 +1018,10 @@ class SquadQueue(commands.Cog):
                             f"Skipping room {index} in function write_history.", flush=True)
                         continue
                     msg = room.view.header_text
-                    msg += f"{room.channel.jump_url}\n"
+                    if common.SERVER is common.Server.MKW:
+                        msg += f"{room.view.room_start_msg_link}\n"
+                    elif common.SERVER is common.Server.MK8DX:
+                        msg += f"{room.channel.jump_url}\n"
                     msg += room.view.teams_text
                     msg += "ㅤ"
                     await history_channel.send(msg)
@@ -1149,9 +1151,9 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                     continue
 
                 try:
-                    await curr_room.channel.send(room_msg)
+                    sent_msg = await curr_room.channel.send(room_msg)
                     view = VoteView(room_players, curr_room.channel,
-                                    mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME)
+                                    mogi, curr_room, self.ROOM_JOIN_PENALTY_TIME, sent_msg.jump_url)
                     curr_room.view = view
                     await curr_room.channel.send(view=view)
                 except discord.DiscordException:
