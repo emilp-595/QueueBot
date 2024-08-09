@@ -56,6 +56,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: discord.
     else:
         raise error
 
+
 @bot.event
 async def setup_hook():
     for extension in initial_extensions:

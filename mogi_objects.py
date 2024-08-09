@@ -47,8 +47,16 @@ class Mogi:
     ALGORITHM_STATUS_SUCCESS_EMPTY = 4
     ALGORITHM_STATUS_SUCCESS_SOME_INVALID = 5
 
-    def __init__(self, sq_id: int, max_players_per_team: int, players_per_room: int, mogi_channel: discord.TextChannel,
-                 is_automated=False, start_time=None, display_time=None, additional_extension_minutes=0):
+    def __init__(
+            self,
+            sq_id: int,
+            max_players_per_team: int,
+            players_per_room: int,
+            mogi_channel: discord.TextChannel,
+            is_automated=False,
+            start_time=None,
+            display_time=None,
+            additional_extension_minutes=0):
         self.started = False
         self.gathering = False
         self.making_rooms_run = False
@@ -83,21 +91,28 @@ class Mogi:
         return self.num_players // self.players_per_room
 
     @staticmethod
-    def _minimize_range(players: List[Player], num_players: int) -> List[Player] | None:
+    def _minimize_range(
+            players: List[Player],
+            num_players: int) -> List[Player] | None:
         """Returns a collection of players (the number of players in the collection is the given num_players parameter) whose has the smallest
         mmr spread. If the number of players in the given list is smaller than the request num_players collection size, or the num_players is less than 2 (doesn't make sense), None is returned."""
-        # The number of players we were given is less than the collection size we are supposed to return, so return None
+        # The number of players we were given is less than the collection size
+        # we are supposed to return, so return None
         if len(players) < num_players:
             return None
         if num_players <= 1:
             return None
-        # Sort the players so we easily know the player with the lowest rating and highest rating in any given collection
+        # Sort the players so we easily know the player with the lowest rating
+        # and highest rating in any given collection
         sorted_players = sorted(players)
-        # In the beginning, the best found collection of players is the first 12
+        # In the beginning, the best found collection of players is the first
+        # 12
         best_collection = sorted_players[0:num_players]
-        cur_min = best_collection[-1].adjusted_mmr - best_collection[0].adjusted_mmr
+        cur_min = best_collection[-1].adjusted_mmr - \
+            best_collection[0].adjusted_mmr
         # Find the collection of players with the least rating spread
-        for lowest_player_index, highest_player in enumerate(sorted_players[num_players:], 1):
+        for lowest_player_index, highest_player in enumerate(
+                sorted_players[num_players:], 1):
             lowest_player = sorted_players[lowest_player_index]
             cur_range = highest_player.adjusted_mmr - lowest_player.adjusted_mmr
             if cur_range < cur_min:
@@ -106,41 +121,56 @@ class Mogi:
                                                  lowest_player_index + num_players]
         return best_collection
 
-    def _all_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[List[Player]], int]:
+    def _all_room_final_list_algorithm(self, valid_players_check: Callable[[
+                                       List[Player]], bool]) -> Tuple[List[List[Player]], int]:
         if self.max_possible_rooms == 0:
             return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
         all_confirmed_players = self.players_on_confirmed_teams()
-        first_late_player_index = (self.num_players // self.players_per_room) * self.players_per_room
-        on_time_players = sorted(all_confirmed_players[:first_late_player_index], reverse=True)
+        first_late_player_index = (
+            self.num_players // self.players_per_room) * self.players_per_room
+        on_time_players = sorted(
+            all_confirmed_players[:first_late_player_index], reverse=True)
         late_players = all_confirmed_players[first_late_player_index:]
-        player_rooms: List[List[Player]] = list(common.divide_chunks(on_time_players, self.players_per_room))
+        player_rooms: List[List[Player]] = list(
+            common.divide_chunks(on_time_players, self.players_per_room))
 
         any_invalid = False
         for pr_index, player_room in enumerate(player_rooms, 0):
-            for lp_index in range(len(late_players)+1):
+            for lp_index in range(len(late_players) + 1):
                 current_late_check_players = late_players[0:lp_index]
-                best_collection = Mogi._minimize_range(player_room + current_late_check_players, self.players_per_room)
+                best_collection = Mogi._minimize_range(
+                    player_room + current_late_check_players, self.players_per_room)
                 if valid_players_check(best_collection):
                     best_collection.sort(reverse=True)
-                    # Get all the players who were swapped out of the room and put them at the front of the late player list
-                    swapped_out_players = [p for p in player_room if p not in best_collection]
-                    swapped_in_players = [p for p in best_collection if p not in player_room]
-                    late_players = swapped_out_players + list(filter(lambda p: p not in swapped_in_players, late_players))
+                    # Get all the players who were swapped out of the room and
+                    # put them at the front of the late player list
+                    swapped_out_players = [
+                        p for p in player_room if p not in best_collection]
+                    swapped_in_players = [
+                        p for p in best_collection if p not in player_room]
+                    late_players = swapped_out_players + \
+                        list(
+                            filter(lambda p: p not in swapped_in_players, late_players))
                     player_rooms[pr_index] = best_collection
                     break
             else:
-                # After checking all late players, no room player list with a valid range could be found for this room
+                # After checking all late players, no room player list with a
+                # valid range could be found for this room
                 any_invalid = True
 
-        return player_rooms, (Mogi.ALGORITHM_STATUS_SUCCESS_SOME_INVALID if any_invalid else Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
+        return player_rooms, (
+            Mogi.ALGORITHM_STATUS_SUCCESS_SOME_INVALID if any_invalid else Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
 
-    def _one_room_final_list_algorithm(self, valid_players_check: Callable[[List[Player]], bool]) -> Tuple[List[Player], int]:
+    def _one_room_final_list_algorithm(self, valid_players_check: Callable[[
+                                       List[Player]], bool]) -> Tuple[List[Player], int]:
         if self.max_possible_rooms == 0:
             return [], Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS
         if self.max_possible_rooms > 1:
             confirmed_players = self.players_on_confirmed_teams()
-            return sorted(confirmed_players[0:self.players_per_room * self.max_possible_rooms], reverse=True), Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS
-        # At this point, we can only make one possible room, so our algorithm will be used
+            return sorted(confirmed_players[0:self.players_per_room *
+                                            self.max_possible_rooms], reverse=True), Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS
+        # At this point, we can only make one possible room, so our algorithm
+        # will be used
         confirmed_players = self.players_on_confirmed_teams()
         cur_check_list = list(confirmed_players[0:self.players_per_room])
         late_players = list(confirmed_players[self.players_per_room:])
@@ -149,7 +179,8 @@ class Mogi:
             best_collection = Mogi._minimize_range(
                 cur_check_list, self.players_per_room)
             if valid_players_check(best_collection):
-                return sorted(best_collection, reverse=True), Mogi.ALGORITHM_STATUS_SUCCESS_FOUND
+                return sorted(
+                    best_collection, reverse=True), Mogi.ALGORITHM_STATUS_SUCCESS_FOUND
             if len(late_players) == 0:
                 break
             cur_check_list.append(late_players.pop(0))
@@ -160,15 +191,21 @@ class Mogi:
         confirmed_players = self.players_on_confirmed_teams()
         if self.max_possible_rooms == 0:
             return confirmed_players
-        return sorted(confirmed_players[0:self.players_per_room * self.max_possible_rooms], reverse=True)
+        return sorted(
+            confirmed_players[0:self.players_per_room * self.max_possible_rooms], reverse=True)
 
-    def _mkw_generate_final_list(self, valid_players_check: Callable[[List[Player]], bool]) -> List[Player]:
-        result, status = self._all_room_final_list_algorithm(valid_players_check)
+    def _mkw_generate_final_list(self, valid_players_check: Callable[[
+                                 List[Player]], bool]) -> List[Player]:
+        result, status = self._all_room_final_list_algorithm(
+            valid_players_check)
         if status is Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS:
             return self.players_on_confirmed_teams()
-        return sorted(common.flatten(result), reverse=True)  # I do not want to formally prove that sorting here is correct
+        # I do not want to formally prove that sorting here is correct
+        return sorted(common.flatten(result), reverse=True)
 
-    def generate_proposed_list(self, valid_players_check: Callable[[List[Player]], bool] = None) -> List[Player]:
+    def generate_proposed_list(self,
+                               valid_players_check: Callable[[List[Player]],
+                                                             bool] = None) -> List[Player]:
         """Algorithm that generates a proposed list of players that will play. This algorithm may differ between
         MK8DX and MKW. The algorithm is allowed to propose any list of players it wants to. Among several possibilities,
         this allows the algorithm to change the order of the players in the returned list, add or remove players,
@@ -183,16 +220,26 @@ class Mogi:
         else:
             raise ValueError(f"Unknown server in config: {common.Server}")
 
-    def _count_cancelled(self, player_list: List[Player], valid_players_check: Callable[[List[Player]], bool] = None) -> int:
+    def _count_cancelled(self,
+                         player_list: List[Player],
+                         valid_players_check: Callable[[List[Player]],
+                                                       bool] = None) -> int:
         """Using the provided valid players check function and player list, returns the number of rooms that would be cancelled."""
         if valid_players_check is None:
             return 0
-        return sum(1 for room_players in common.divide_chunks(player_list, self.players_per_room) if not valid_players_check(room_players))
+        return sum(
+            1 for room_players in common.divide_chunks(
+                player_list,
+                self.players_per_room) if not valid_players_check(room_players))
 
-    def _any_cancelled(self, player_list: List[Player], valid_players_check: Callable[[List[Player]], bool] = None) -> bool:
+    def _any_cancelled(self,
+                       player_list: List[Player],
+                       valid_players_check: Callable[[List[Player]],
+                                                     bool] = None) -> bool:
         return self._count_cancelled(player_list, valid_players_check) > 0
 
-    def any_room_cancelled(self, valid_players_check: Callable[[List[Player]], bool] = None) -> bool:
+    def any_room_cancelled(self, valid_players_check: Callable[[
+                           List[Player]], bool] = None) -> bool:
         """Using the provided valid players check function, returns if any of the rooms will be cancelled."""
         if valid_players_check is None:
             return False
@@ -216,7 +263,8 @@ class Mogi:
         return flatten([team.players for team in self.confirmed_teams()])
 
     def all_room_channel_ids(self) -> Set[int]:
-        return {r.channel.id for r in self.rooms if r is not None and r.channel is not None}
+        return {
+            r.channel.id for r in self.rooms if r is not None and r.channel is not None}
 
     def channel_id_in_rooms(self, channel_id: int):
         return channel_id in self.all_room_channel_ids()
@@ -241,15 +289,20 @@ class Mogi:
     async def assign_roles(self, guild: discord.Guild):
         for room in self.rooms:
             try:
-                to_skip = None if room.room_role is None else {room.room_role.id}
+                to_skip = None if room.room_role is None else {
+                    room.room_role.id}
                 await room.assign_roles(guild=guild, role_skip=to_skip)
             except RoleAddFailure:
                 pass
 
 
-
 class Room:
-    def __init__(self, teams, room_num: int, channel: discord.Thread | discord.TextChannel, tier_info):
+    def __init__(
+            self,
+            teams,
+            room_num: int,
+            channel: discord.Thread | discord.TextChannel,
+            tier_info):
         self.teams: List["Team"] = teams
         self.room_num = room_num
         self.channel = channel
@@ -342,8 +395,9 @@ class Room:
             raise RoleNotFound(f"Could not find role for tier {self.tier}")
         try:
             await member.add_roles(self.room_role)
-        except:
-            raise RoleAddFailure(f"Failed to add role {self.room_role.name} to {member}\n")
+        except BaseException:
+            raise RoleAddFailure(
+                f"Failed to add role {self.room_role.name} to {member}\n")
 
     async def assign_roles(self, guild: discord.Guild, role_skip=None):
         role_add_fail_text = ""
@@ -367,7 +421,7 @@ class Room:
     async def prepare_room_channel(self, guild: discord.Guild, all_events: List[Mogi | None]):
         if common.CONFIG["USE_THREADS"]:
             return
-        
+
         # Find the available tier channels for the tier (collection)
         tier_collection = self.tier_collection
         tier_data = common.CONFIG["TIER_CHANNELS"][tier_collection]
@@ -380,20 +434,24 @@ class Room:
                     free_tier_channel_ids.remove(channel_id)
         # If there are no available tier channels, raise an exception
         if len(free_tier_channel_ids) == 0:
-            raise NoFreeChannels(f"No free channels for tier {tier_collection}")
-        
+            raise NoFreeChannels(
+                f"No free channels for tier {tier_collection}")
+
         # Get the discord.GuildChannel of the first available channel id
         found_channel = guild.get_channel(free_tier_channel_ids[0])
         if not isinstance(found_channel, discord.TextChannel):
-            raise WrongChannelType(f"For tier {tier_collection}, channel id {channel_id} is of type {type(found_channel)}, expected discord.TextChannel")
+            raise WrongChannelType(
+                f"For tier {tier_collection}, channel id {channel_id} is of type {type(found_channel)}, expected discord.TextChannel")
         self.channel = found_channel
 
-        # Assign the role for the tier collection to all players in the room so they can see the tier
+        # Assign the role for the tier collection to all players in the room so
+        # they can see the tier
         tier_role_id = tier_data["tier_role_id"]
         self.room_role = guild.get_role(tier_role_id)
         if self.room_role is None:
-            raise RoleNotFound(f"Could not find role for role id {tier_role_id} for tier {tier_collection}")
-        await self.assign_roles(guild=guild, role_skip=tier_data["role_ids_can_see_already"]+[tier_role_id])
+            raise RoleNotFound(
+                f"Could not find role for role id {tier_role_id} for tier {tier_collection}")
+        await self.assign_roles(guild=guild, role_skip=tier_data["role_ids_can_see_already"] + [tier_role_id])
 
 
 class Team:
@@ -445,7 +503,13 @@ class Team:
 
 
 class Player:
-    def __init__(self, member: discord.Member, lounge_name: str, mmr: int, confirmed=False, host=False):
+    def __init__(
+            self,
+            member: discord.Member,
+            lounge_name: str,
+            mmr: int,
+            confirmed=False,
+            host=False):
         self.member = member
         self.lounge_name = lounge_name
         self.mmr = mmr
@@ -485,7 +549,14 @@ class Player:
 
 
 class VoteView(View):
-    def __init__(self, players, thread, mogi: Mogi, room: Room, penalty_time: int, room_start_msg_link):
+    def __init__(
+            self,
+            players,
+            thread,
+            mogi: Mogi,
+            room: Room,
+            penalty_time: int,
+            room_start_msg_link):
         super().__init__()
         self.players: List[Player] = players
         self.room_channel: discord.Thread | discord.TextChannel = thread
@@ -542,7 +613,8 @@ class VoteView(View):
         teams = []
         teams_per_room = 12 // players_per_team
         for j in range(teams_per_room):
-            team = Team(self.players[j * players_per_team:(j + 1) * players_per_team])
+            team = Team(
+                self.players[j * players_per_team:(j + 1) * players_per_team])
             teams.append(team)
 
         teams.sort(key=lambda team: team.avg_mmr, reverse=True)
@@ -590,7 +662,8 @@ class VoteView(View):
             else:
                 cur_time = datetime.now(timezone.utc)
                 mkw_room_open_time = cur_time + timedelta(minutes=1)
-                pen_time = mkw_room_open_time + timedelta(minutes=self.penalty_time)
+                pen_time = mkw_room_open_time + \
+                    timedelta(minutes=self.penalty_time)
                 msg += f"\nRoom open at :{mkw_room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
 
         room.teams = teams
@@ -598,7 +671,8 @@ class VoteView(View):
         self.found_winner = True
         await self.room_channel.send(msg)
         if common.CONFIG["USE_THREADS"]:
-            new_thread_name = self.room_channel.name + f" - {tier_text}{room.tier}"
+            new_thread_name = self.room_channel.name + \
+                f" - {tier_text}{room.tier}"
             await self.room_channel.edit(name=new_thread_name)
 
     async def find_winner(self):
@@ -613,7 +687,8 @@ class VoteView(View):
                 winners.append((3, "3v3"))
             if len(self.votes["4v4"]) == most_votes:
                 winners.append((4, "4v4"))
-            if common.SERVER is common.Server.MKW and len(self.votes["6v6"]) == most_votes:
+            if common.SERVER is common.Server.MKW and len(
+                    self.votes["6v6"]) == most_votes:
                 winners.append((6, "6v6"))
 
             winner = random.choice(winners)
@@ -655,7 +730,13 @@ class VoteView(View):
 
 
 class JoinView(View):
-    def __init__(self, room: Room, get_rating_from_discord_id, sub_range_mmr_allowance, bottom_room_num, is_restricted: Callable[[discord.User | discord.Member], bool] | None = None):
+    def __init__(self,
+                 room: Room,
+                 get_rating_from_discord_id,
+                 sub_range_mmr_allowance,
+                 bottom_room_num,
+                 is_restricted: Callable[[discord.User | discord.Member],
+                                         bool] | None = None):
         super().__init__(timeout=1200)
         self.room = room
         self.get_rating_from_discord_id = get_rating_from_discord_id
@@ -665,7 +746,8 @@ class JoinView(View):
 
     @discord.ui.button(label="Join Room")
     async def button_callback(self, interaction: discord.Interaction, button):
-        if self.is_restricted is not None and self.is_restricted(interaction.user):
+        if self.is_restricted is not None and self.is_restricted(
+                interaction.user):
             await interaction.response.send_message(
                 "Players with the muted or restricted role cannot use the sub button.", ephemeral=True)
             return
@@ -677,14 +759,15 @@ class JoinView(View):
             user_mmr = self.get_rating_from_discord_id(interaction.user.id)
             if isinstance(user_mmr, int):
                 user_mmr = Player(None, "", user_mmr).adjusted_mmr
-        except:
+        except BaseException:
             await interaction.response.send_message(
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
             return
 
         mmr_high = 999999 if self.room.room_num == 1 else self.room.mmr_high
         mmr_low = -999999 if self.room.room_num == self.bottom_room_num else self.room.mmr_low
-        if isinstance(user_mmr, int) and mmr_high + self.sub_range_mmr_allowance > user_mmr > mmr_low - self.sub_range_mmr_allowance:
+        if isinstance(user_mmr, int) and mmr_high + \
+                self.sub_range_mmr_allowance > user_mmr > mmr_low - self.sub_range_mmr_allowance:
             self.room.subs.append(interaction.user.id)
             button.disabled = True
             await interaction.response.edit_message(view=self)

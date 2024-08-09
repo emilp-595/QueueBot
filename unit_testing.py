@@ -130,11 +130,13 @@ class AlgorithmTests(unittest.TestCase):
         p14 = Player(None, "14", 1501)
         p15 = Player(None, "15", 502)
         p16 = Player(None, "16", 100)
-        players = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16]
+        players = [p1, p2, p3, p4, p5, p6, p7, p8,
+                   p9, p10, p11, p12, p13, p14, p15, p16]
         random.shuffle(players)
         num_players = 12
         result = Mogi._minimize_range(players, num_players)
-        self.assertListEqual([p16, p11, p2, p9, p15, p10, p4, p5, p1, p3, p14, p12], result)
+        self.assertListEqual(
+            [p16, p11, p2, p9, p15, p10, p4, p5, p1, p3, p14, p12], result)
 
     def test_correct_collection_7(self):
         """Test #7 for large player collection where 12 players are given and 12 are requested"""
@@ -164,11 +166,14 @@ class OneRoomAlgorithmTests(unittest.TestCase):
         cls.threshold = 65
         cls.threshold_function = None
         if common.SERVER is common.Server.MKW:
-            cls.threshold_function = lambda players: SquadQueue.mkw_players_allowed(players, cls.threshold)
+            cls.threshold_function = lambda players: SquadQueue.mkw_players_allowed(
+                players, cls.threshold)
         elif common.SERVER is common.Server.MK8DX:
-            cls.threshold_function = lambda players: SquadQueue.mk8dx_players_allowed(players, cls.threshold)
+            cls.threshold_function = lambda players: SquadQueue.mk8dx_players_allowed(
+                players, cls.threshold)
         else:
-            raise Exception("Lounge parameter in config is invalid, unit tests will fail.")
+            raise Exception(
+                "Lounge parameter in config is invalid, unit tests will fail.")
 
     def _new_default_mogi(self) -> Mogi:
         """Returns a default mogi with 12 players per room."""
@@ -182,18 +187,24 @@ class OneRoomAlgorithmTests(unittest.TestCase):
     def test_no_players(self):
         """Test when no players are queued"""
         mogi = self._new_default_mogi()
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
         self.assertListEqual([], results)
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS)
 
     def test_one_player(self):
         """Test when one player is queued"""
         p1 = Player(None, "1", 1000, True)
         mogi = self._new_default_mogi()
         mogi.teams.append(Team([p1]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
         self.assertListEqual([], results)
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS)
 
     def test_two_players(self):
         """Test when two players are queued"""
@@ -202,9 +213,12 @@ class OneRoomAlgorithmTests(unittest.TestCase):
         mogi = self._new_default_mogi()
         mogi.teams.append(Team([p1]))
         mogi.teams.append(Team([p2]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
         self.assertListEqual([], results)
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS)
 
     def test_large_max_players_per_team(self):
         """This is to catch the Mogi class computes the number of confirmed players incorrectly"""
@@ -212,9 +226,12 @@ class OneRoomAlgorithmTests(unittest.TestCase):
         mogi = self._new_default_mogi()
         mogi.max_player_per_team = 24
         mogi.teams.append(Team([p1]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
         self.assertListEqual([], results)
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_INSUFFICIENT_PLAYERS)
 
     def test_2_rooms_correctness_1(self):
         """Test if 24P for 12 player rooms generates 2 rooms with correct status code"""
@@ -222,9 +239,12 @@ class OneRoomAlgorithmTests(unittest.TestCase):
         mogi = self._new_default_mogi()
         for p in players:
             mogi.teams.append(Team([p]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
         self.assertSetEqual(set(players), set(results))
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS)
 
     def test_2_rooms_correctness_2(self):
         """Test if 25P for 12 player rooms generates 2 rooms with correct players and correct status code"""
@@ -233,46 +253,68 @@ class OneRoomAlgorithmTests(unittest.TestCase):
         mogi = self._new_default_mogi()
         for p in players:
             mogi.teams.append(Team([p]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
         self.assertSetEqual(set(players[0:24]), set(results))
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS)
 
     def test_2_rooms_correctness_3(self):
         """Test if 25P for 12 player rooms generates 2 rooms with correct players and correct status code even with extremely large range"""
-        players = [Player(None, f"{i*10000}", i*10000, True) for i in range(25)]
+        players = [
+            Player(
+                None,
+                f"{i*10000}",
+                i * 10000,
+                True) for i in range(25)]
         random.shuffle(players)
         mogi = self._new_default_mogi()
         for p in players:
             mogi.teams.append(Team([p]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
         self.assertSetEqual(set(players[0:24]), set(results))
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_2_OR_MORE_ROOMS)
 
     def test_1_room_correctness_1(self):
         """Test if 15P for 12 player rooms generates 1 rooms with correct players and correct status code"""
         assert self.threshold == 65
-        players = [Player(None, f"{i}", abs(i-8)*(i-8), True) for i in range(17)]  # -64, -49, -36, ... 0, 1, 4, ... 64
-        players.pop(15)  # Set 36 rating to not confirmed so only one possibility occurs
-        correct_result = players[2:14].copy()  # Only one possibility that matches threshold
+        # -64, -49, -36, ... 0, 1, 4, ... 64
+        players = [Player(None, f"{i}", abs(
+            i - 8) * (i - 8), True) for i in range(17)]
+        # Set 36 rating to not confirmed so only one possibility occurs
+        players.pop(15)
+        # Only one possibility that matches threshold
+        correct_result = players[2:14].copy()
         random.shuffle(players)
         mogi = self._new_default_mogi()
         for p in players:
             mogi.teams.append(Team([p]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
         self.assertSetEqual(set(correct_result), set(results))
 
     def test_2_room_correctness_2(self):
         """Test if 15P for 12 player rooms does not find any rooms when players are beyond range"""
         assert self.threshold == 65
-        players = [Player(None, f"{i}", (i-8)**3, True) for i in range(17)]  # -512, -343, ... 0, 1, 8, ... 512
+        # -512, -343, ... 0, 1, 8, ... 512
+        players = [Player(None, f"{i}", (i - 8)**3, True) for i in range(17)]
         correct_result = []  # No possible list of players
         random.shuffle(players)
         mogi = self._new_default_mogi()
         for p in players:
             mogi.teams.append(Team([p]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY)
         self.assertSetEqual(set(correct_result), set(results))
 
     def test_2_room_correctness_3(self):
@@ -294,14 +336,19 @@ class OneRoomAlgorithmTests(unittest.TestCase):
         p14 = Player(None, "14", 74, True)
         p15 = Player(None, "15", 9, True)
         p16 = Player(None, "16", 100, True)
-        # p4 should be removed, p10 should be removed, p13 should be added, p15 should be added
-        players = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16]
+        # p4 should be removed, p10 should be removed, p13 should be added, p15
+        # should be added
+        players = [p1, p2, p3, p4, p5, p6, p7, p8,
+                   p9, p10, p11, p12, p13, p14, p15, p16]
         correct_result = [p1, p2, p3, p5, p6, p7, p8, p9, p11, p12, p13, p15]
         mogi = self._new_default_mogi()
         for p in players:
             mogi.teams.append(Team([p]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_SUCCESS_FOUND)
         self.assertSetEqual(set(correct_result), set(results))
 
     def test_2_room_correctness_4(self):
@@ -323,15 +370,20 @@ class OneRoomAlgorithmTests(unittest.TestCase):
         p14 = Player(None, "14", 74, True)
         p15 = Player(None, "15", 9, False)
         p16 = Player(None, "16", 100, True)
-        players = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16]
-        correct_result = []  # Same as previous test, but since p15 is not confirmed, no result is found
+        players = [p1, p2, p3, p4, p5, p6, p7, p8,
+                   p9, p10, p11, p12, p13, p14, p15, p16]
+        # Same as previous test, but since p15 is not confirmed, no result is
+        # found
+        correct_result = []
         mogi = self._new_default_mogi()
         for p in players:
             mogi.teams.append(Team([p]))
-        results, status_code = mogi._one_room_final_list_algorithm(OneRoomAlgorithmTests.threshold_function)
-        self.assertEqual(status_code, SquadQueue.Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY)
+        results, status_code = mogi._one_room_final_list_algorithm(
+            OneRoomAlgorithmTests.threshold_function)
+        self.assertEqual(
+            status_code,
+            SquadQueue.Mogi.ALGORITHM_STATUS_SUCCESS_EMPTY)
         self.assertSetEqual(set(correct_result), set(results))
-
 
 
 if __name__ == "__main__":

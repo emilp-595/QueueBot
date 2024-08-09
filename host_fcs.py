@@ -26,7 +26,8 @@ async def _get_mkw_hosts(discord_ids: Iterable[str]) -> Dict[str, str]:
                 return {}
             results = await r.json()
             if "status" not in results or results["status"] != "success":
-                print(f"hostfc endpoint returned unsuccessful results {results}")
+                print(
+                    f"hostfc endpoint returned unsuccessful results {results}")
                 return {}
             host_mapping = {}
             for item in results["results"]:
