@@ -19,7 +19,8 @@ if CONFIG["lounge"] == "MKW":
 elif CONFIG["lounge"] == "MK8DX":
     SERVER = Server.MK8DX
 else:
-    raise ValueError(f"{CONFIG['lounge']} is not a valid option for the 'lounge' attribute in the config.")
+    raise ValueError(
+        f"{CONFIG['lounge']} is not a valid option for the 'lounge' attribute in the config.")
 
 
 def divide_chunks(list_: list, chunk_size: int):
@@ -41,5 +42,6 @@ def is_int(var: str) -> bool:
         return True
     except ValueError:
         return False
+
 
 config_checker.check(CONFIG)

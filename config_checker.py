@@ -45,6 +45,7 @@ STRONGLY_REQUIRED_FIELDS = [
     ("USE_THREADS", bool)
 ]
 
+
 def check(config: dict):
     for required_field_name, required_field_type in STRONGLY_REQUIRED_FIELDS:
         check_list_items = required_field_name.endswith(".list_items")
@@ -52,9 +53,10 @@ def check(config: dict):
             required_field_name = required_field_name[:-len(".list_items")]
 
         if required_field_name not in config:
-            raise ValueError(f"Did not find field '{required_field_name}' in config. Your config appears to be out of date.")
+            raise ValueError(
+                f"Did not find field '{required_field_name}' in config. Your config appears to be out of date.")
         field_data = config[required_field_name]
-        if type(required_field_type) is not tuple:
+        if not isinstance(required_field_type, tuple):
             required_field_type = (required_field_type,)
         if check_list_items:
             for item in field_data:
@@ -71,21 +73,25 @@ def check(config: dict):
     if not config["USE_THREADS"]:
         required_field_name = "TIER_CHANNELS"
         if required_field_name not in config:
-            raise ValueError(f"Did not find field '{required_field_name}' in config. Your config appears to be out of date.")
+            raise ValueError(
+                f"Did not find field '{required_field_name}' in config. Your config appears to be out of date.")
         tier_channel_data = config[required_field_name]
-        if type(tier_channel_data) is not dict:
-            raise TypeError(f"""For field '{required_field_name}', expected type dict, but config type is {type(tier_channel_data)}""")
+        if not isinstance(tier_channel_data, dict):
+            raise TypeError(
+                f"""For field '{required_field_name}', expected type dict, but config type is {type(tier_channel_data)}""")
         for k, v in tier_channel_data.items():
-            if type(k) is not str:
-                raise TypeError(f"""For field '{required_field_name}', the keys must all be of type str, but a key of type {type(k)} was found.""")
-            needed_keys = [("tier_role_id", int), ("channel_ids", list), ("role_ids_can_see_already", list)]
+            if not isinstance(k, str):
+                raise TypeError(
+                    f"""For field '{required_field_name}', the keys must all be of type str, but a key of type {type(k)} was found.""")
+            needed_keys = [("tier_role_id", int), ("channel_ids",
+                                                   list), ("role_ids_can_see_already", list)]
             for sub_k, sub_type in needed_keys:
                 if sub_k not in v:
-                    raise ValueError(f"Did not find field '{sub_k}' in each item of TIER_CHANNELS in the config. Your config appears to be out of date.")
+                    raise ValueError(
+                        f"Did not find field '{sub_k}' in each item of TIER_CHANNELS in the config. Your config appears to be out of date.")
                 sub_data = v[sub_k]
-                if type(sub_data) is not sub_type:
-                    raise TypeError(f"""For field '{sub_k}' in TIER_CHANNELS data, found type {type(sub_data)}, expected {sub_type}.""")
-
+                if not isinstance(sub_data, sub_type):
+                    raise TypeError(
+                        f"""For field '{sub_k}' in TIER_CHANNELS data, found type {type(sub_data)}, expected {sub_type}.""")
 
     print("Config file validated.")
-

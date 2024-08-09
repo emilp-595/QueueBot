@@ -45,12 +45,14 @@ class Ratings:
         status = await rating_func()
         # If we failed to pull ratings, wait 60 seconds and try again
         if not status:
-            print(f"Failed to pull ratings for {common.SERVER.name}. Waiting 60 seconds and trying again.")
+            print(
+                f"Failed to pull ratings for {common.SERVER.name}. Waiting 60 seconds and trying again.")
             await asyncio.sleep(60)
             status = await rating_func()
             # If we failed to pull ratings again, fail.
             if not status:
-                print(f"Failed to pull ratings for {common.SERVER.name} on 2nd attempt. Skipping.")
+                print(
+                    f"Failed to pull ratings for {common.SERVER.name} on 2nd attempt. Skipping.")
                 return
         self.first_run_complete = True
 
@@ -74,7 +76,8 @@ class Ratings:
                 try:
                     validator(data)
                 except RatingRequestFailure:
-                    print(f"{common.SERVER.name}'s data from API was formatted incorrectly.")
+                    print(
+                        f"{common.SERVER.name}'s data from API was formatted incorrectly.")
                     print(traceback.format_exc())
                     return False
                 parser(data)
@@ -82,34 +85,38 @@ class Ratings:
         return False  # Didn't run request successfully, so we return it was a failure
 
     def _validate_mk8dx_response(self, results: dict):
-        if type(results) is not dict:
+        if not isinstance(results, dict):
             raise BadRatingData("Response is not a dictionary")
         all_players = results.get("players")
         if all_players is None:
-            raise BadRatingData("Key word 'players' not found in JSON response.")
+            raise BadRatingData(
+                "Key word 'players' not found in JSON response.")
         #
         required_player_amount = 10000
         if len(all_players) < required_player_amount:
             raise BadPlayerDataLength(
-                f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response.""")
+                f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response."
+                "")
 
         strongly_required_fields = [("name", str)]
         weakly_required_fields = [("discordId", str), ("mmr", int)]
         for player in all_players:
-            # Ensure all strongly required fields are in the player JSON and that the type is correct
+            # Ensure all strongly required fields are in the player JSON and
+            # that the type is correct
             for strongly_req_field_name, strongly_req_field_type in strongly_required_fields:
                 if strongly_req_field_name not in player:
                     raise BadPlayerData(
                         f"Missing required field '{strongly_req_field_name}' in the following player: {player}")
                 field_data = player[strongly_req_field_name]
-                if type(field_data) is not strongly_req_field_type:
+                if not isinstance(field_data, strongly_req_field_type):
                     raise BadPlayerData(
                         f"For field '{strongly_req_field_name}', expected type '{strongly_req_field_type}' received {type(field_data)} for player: {player}")
-            # Ensure that if the weakly required field is in the JSON, the type is correct
+            # Ensure that if the weakly required field is in the JSON, the type
+            # is correct
             for weakly_req_field_name, weakly_req_field_type in weakly_required_fields:
                 if weakly_req_field_name in player:
                     field_data = player[weakly_req_field_name]
-                    if type(field_data) is not weakly_req_field_type:
+                    if not isinstance(field_data, weakly_req_field_type):
                         raise BadPlayerData(
                             f"For field '{weakly_req_field_name}', expected type '{weakly_req_field_type}' received {type(field_data)} for player: {player}")
 
@@ -120,44 +127,55 @@ class Ratings:
             discord_id = player.get("discordId")
             if discord_id is None:
                 continue
-            rating = common.CONFIG["PLACEMENT_PLAYER_MMR"] if player.get("mmr") is None else player.get("mmr")
+            rating = common.CONFIG["PLACEMENT_PLAYER_MMR"] if player.get(
+                "mmr") is None else player.get("mmr")
             self.ratings[discord_id] = (rating, player["name"])
 
     def _validate_mkw_response(self, results: dict):
-        if type(results) is not dict:
+        if not isinstance(results, dict):
             raise BadRatingData("Response is not a dictionary")
         mkw_status = results.get("status")
         if mkw_status is None:
-            raise BadRatingData("Key word 'status' not found in JSON response.")
+            raise BadRatingData(
+                "Key word 'status' not found in JSON response.")
         if mkw_status != "success":
-            raise BadRatingData(f"'status' had value of {mkw_status} in JSON response.")
+            raise BadRatingData(
+                f"'status' had value of {mkw_status} in JSON response.")
 
         all_players = results.get("results")
         if all_players is None:
-            raise BadRatingData("Key word 'results' not found in JSON response.")
+            raise BadRatingData(
+                "Key word 'results' not found in JSON response.")
         #
         required_player_amount = 1000
         if len(all_players) < required_player_amount:
             raise BadPlayerDataLength(
-                f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response.""")
+                f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response."
+                "")
 
         for player in all_players:
             if "player_name" not in player:
-                raise BadPlayerData(f"Missing required field 'player_name' in the following player: {player}")
+                raise BadPlayerData(
+                    f"Missing required field 'player_name' in the following player: {player}")
             if "discord_user_id" not in player:
-                raise BadPlayerData(f"Missing required field 'discord_user_id' in the following player: {player}")
+                raise BadPlayerData(
+                    f"Missing required field 'discord_user_id' in the following player: {player}")
             if "current_mmr" not in player:
-                raise BadPlayerData(f"Missing required field 'current_mmr' in the following player: {player}")
+                raise BadPlayerData(
+                    f"Missing required field 'current_mmr' in the following player: {player}")
             player_name = player.get("player_name")
             discord_user_id = player.get("discord_user_id")
             current_mmr = player.get("current_mmr")
-            if not (type(discord_user_id) is str or discord_user_id is None):
+            if not (
+                isinstance(
+                    discord_user_id,
+                    str) or discord_user_id is None):
                 raise BadPlayerData(
                     f"For field 'discord_user_id', expected type 'str' or None, received {type(discord_user_id)} for player: {player}")
-            if type(current_mmr) is not int:
+            if not isinstance(current_mmr, int):
                 raise BadPlayerData(
                     f"For field 'current_mmr', expected type 'int' received {type(current_mmr)} for player: {player}")
-            if type(player_name) is not str:
+            if not isinstance(player_name, str):
                 raise BadPlayerData(
                     f"For field 'player_name', expected type 'str' received {type(player_name)} for player: {player}")
 
@@ -167,7 +185,8 @@ class Ratings:
         for player in all_players:
             discord_user_id = player.get("discord_user_id")
             if discord_user_id is not None:
-                self.ratings[player["discord_user_id"]] = (player["current_mmr"], player["player_name"])
+                self.ratings[player["discord_user_id"]] = (
+                    player["current_mmr"], player["player_name"])
 
     def get_rating_from_discord_id(self, discord_id: int | str) -> int | None:
         discord_id = str(discord_id)
@@ -179,12 +198,14 @@ class Ratings:
         else:
             return None
 
-    def get_rating(self, members: List[discord.User | discord.Member]) -> List[Player]:
+    def get_rating(
+            self, members: List[discord.User | discord.Member]) -> List[Player]:
         if not self.first_run_complete:
             raise RatingsNotReady("Ratings not pulled yet.")
         all_players = []
         for member in members:
-            member_id = str(member.id)  # Are discord member IDs already strings...?
+            # Are discord member IDs already strings...?
+            member_id = str(member.id)
             if member_id not in self.ratings:
                 continue
             rating, name = self.ratings[member_id]
