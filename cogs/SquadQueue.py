@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from datetime import datetime, timezone, timedelta
+import pytz
 import time
 import json
 
@@ -15,7 +16,7 @@ import mmr
 from mogi_objects import Mogi, Team, Player, Room, VoteView, JoinView
 import asyncio
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple
 import traceback
 import os
 import dill
@@ -161,7 +162,9 @@ class SquadQueue(commands.Cog):
 
         self.old_events: List[Mogi] = []
 
-        self.sq_times = []
+        self.sq_times: List[datetime] = []
+
+        self.forced_format_times: List[Tuple[datetime, str]] = []
 
         # Parameters for tracking if we should send an extension message or not
         self.last_extension_message_timestamp = datetime.now(
@@ -176,6 +179,8 @@ class SquadQueue(commands.Cog):
         self.msg_queue = {}
 
         self.list_messages = []
+
+        self.format_messages = []
 
         self.LAUNCH_NEW_EVENTS = True
 
@@ -312,9 +317,10 @@ class SquadQueue(commands.Cog):
             self.bot.config["queue_history_channel"])
         self.GENERAL_CHANNEL = self.bot.get_channel(
             self.bot.config["queue_general_channel"])
-        if self.bot.config["queue_schedule_channel"]:
+        schedule_channel_id = self.bot.config["queue_schedule_channel"]
+        if schedule_channel_id:
             self.SCHEDULE_CHANNEL = self.bot.get_channel(
-                self.bot.config["queue_schedule_channel"])
+                schedule_channel_id)
         if common.SERVER is common.Server.MKW:
             await self.get_ladder_info()
         try:
@@ -326,6 +332,13 @@ class SquadQueue(commands.Cog):
             await self.SUB_CHANNEL.purge()
         except BaseException:
             print("Purging Sub channel failed", flush=True)
+            print(traceback.format_exc())
+        try:
+            if schedule_channel_id:
+                await self.SCHEDULE_CHANNEL.purge()
+                await self.update_forced_format_list()
+        except BaseException:
+            print("Purging Schedule channel failed", flush=True)
             print(traceback.format_exc())
 
         settings_group = SettingsGroup(
@@ -339,6 +352,7 @@ class SquadQueue(commands.Cog):
         print(f"List Channel - {self.LIST_CHANNEL}", flush=True)
         print(f"History Channel - {self.HISTORY_CHANNEL}", flush=True)
         print(f"General Channel - {self.GENERAL_CHANNEL}", flush=True)
+        print(f"Schedule Channel - {self.SCHEDULE_CHANNEL}", flush=True)
         print("Ready!", flush=True)
         self.refresh_ratings.start()
         self.refresh_helper_roles.start()
@@ -529,9 +543,11 @@ class SquadQueue(commands.Cog):
         squad = Team(players)
         mogi.teams.append(squad)
         host_str = " as a host " if host else " "
-        msg += f"{players[0].lounge_name} joined queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
-        if players[0].is_matchmaking_mmr_adjusted:
-            msg += f"\nPlayer considered {players[0].adjusted_mmr} MMR for matchmaking purposes."
+        format_str = f"the {mogi.format} " if mogi.format else ""
+        msg += f"{players[0].lounge_name} joined {format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
+        if common.SERVER is common.Server.MKW:
+            if players[0].is_matchmaking_mmr_adjusted:
+                msg += f"\nPlayer considered {players[0].adjusted_mmr} MMR for matchmaking purposes."
 
         event_status_launched = self.check_close_event_change()
         try:
@@ -648,7 +664,7 @@ class SquadQueue(commands.Cog):
 
     @tasks.loop(seconds=30)
     async def list_task(self):
-        """Continually display the list of confirmed players for a mogi in the history channel"""
+        """Continually display the list of confirmed players for a mogi in the list channel"""
         mogi = self.ongoing_event
         if mogi is not None:
             if not mogi.gathering:
@@ -662,7 +678,8 @@ class SquadQueue(commands.Cog):
             late_players = all_confirmed_players[first_late_player_index:]
 
             msg = f"**Queue closing: {discord.utils.format_dt(mogi.start_time)}**\n\n"
-            msg += "**Current Mogi List:**\n"
+            format_str = f"{mogi.format} " if mogi.format else ""
+            msg += f"**Current {format_str}Mogi List:**\n"
             if common.SERVER is common.Server.MKW:
                 for i, player in enumerate(on_time_players, 1):
                     adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
@@ -720,6 +737,66 @@ class SquadQueue(commands.Cog):
                 messages_to_delete.append(self.list_messages.pop())
             if self.LIST_CHANNEL and len(messages_to_delete) > 0:
                 await self.LIST_CHANNEL.delete_messages(messages_to_delete)
+        except Exception as e:
+            print(traceback.format_exc())
+
+    async def update_forced_format_list(self):
+        """Update the list of Mogis with scheduled formats"""
+
+        if self.SCHEDULE_CHANNEL:
+            msg = ""
+
+            if common.SERVER is common.Server.MKW:
+                msg += "**Daily Queue Times:**\n\n"
+
+                curr_time = self.compute_next_event_open_time() + self.JOINING_TIME + \
+                    self.DISPLAY_OFFSET_MINUTES
+                cutoff_time = curr_time + timedelta(hours=24)
+
+                while curr_time < cutoff_time:
+                    msg += f"{discord.utils.format_dt(curr_time, style='t')}\n"
+                    curr_time += self.QUEUE_OPEN_TIME
+
+                msg += "\n"
+
+            msg += "**List of Mogis with Scheduled Formats:**\n\n"
+            for index, event in enumerate(self.forced_format_times):
+                msg += f"{index + 1}) {discord.utils.format_dt(event[0])} - {event[1]}\n"
+            message = msg.split("\n")
+
+            new_messages = []
+            bulk_msg = ""
+            for i in range(len(message)):
+                if len(bulk_msg + message[i] + "\n") > 2000:
+                    new_messages.append(bulk_msg)
+                    bulk_msg = ""
+                bulk_msg += message[i] + "\n"
+            if len(bulk_msg) > 0 and bulk_msg != "\n":
+                new_messages.append(bulk_msg)
+
+            await self.delete_format_messages(len(new_messages))
+
+            try:
+                for i, message in enumerate(new_messages):
+                    if i < len(self.format_messages):
+                        old_message = self.format_messages[i]
+                        await old_message.edit(content=message)
+                    else:
+                        new_message = await self.SCHEDULE_CHANNEL.send(message)
+                        self.format_messages.append(new_message)
+            except BaseException:
+                await self.delete_format_messages(0)
+                for i, message in enumerate(new_messages):
+                    new_message = await self.SCHEDULE_CHANNEL.send(message)
+                    self.format_messages.append(new_message)
+
+    async def delete_format_messages(self, new_list_size: int):
+        try:
+            messages_to_delete = []
+            while len(self.format_messages) > new_list_size:
+                messages_to_delete.append(self.format_messages.pop())
+            if self.SCHEDULE_CHANNEL and len(messages_to_delete) > 0:
+                await self.SCHEDULE_CHANNEL.delete_messages(messages_to_delete)
         except Exception as e:
             print(traceback.format_exc())
 
@@ -941,57 +1018,217 @@ class SquadQueue(commands.Cog):
         self.LAUNCH_NEW_EVENTS = True
         await interaction.response.send_message("All events have been deleted.  Queue will restart shortly.")
 
-    @app_commands.command(name="schedule_sq_times")
-    @app_commands.guild_only()
-    async def schedule_sq_times(self, interaction: discord.Interaction, date: str):
-        """Schedule Squad Queue times.  Staff use only."""
-        await interaction.response.send_message(f"Testing date {date}")
+    async def timezone_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        current_upper = current.upper()
+        now = datetime.now(pytz.utc)
+        active_timezones = []
 
-    @schedule_sq_times.autocomplete("date")
-    async def date_autocomplete(ctx: discord.AutocompleteContext):
-        today = datetime.now().date()
+        for tz, info in self.timezones.items():
+            full_timezone_name = info['zone_name']
+            tz_info = pytz.timezone(full_timezone_name)
+            local_now = now.astimezone(tz_info)
+
+            if local_now.utcoffset().total_seconds() / 3600 == info['offset']:
+                if current_upper in tz.upper():
+                    active_timezones.append((tz, info['offset']))
+
+        active_timezones.sort(key=lambda x: (x[1], x[0]))
+
+        choices = [
+            app_commands.Choice(name=f"{tz} (UTC{offset:+})", value=tz)
+            for tz, offset in active_timezones
+        ]
+
+        return choices[:25]
+
+    async def date_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        timezone_choice = pytz.timezone("Etc/UTC")
+
+        if 'options' in interaction.data:
+            for option in interaction.data['options']:
+                if option['name'] == 'tzone':
+                    abbreviation = option['value']
+                    timezone_info = self.timezones.get(abbreviation, {})
+                    full_timezone_name = timezone_info.get(
+                        "zone_name", "Etc/UTC")
+                    timezone_choice = pytz.timezone(full_timezone_name)
+                    break
+
+        today = datetime.now(timezone_choice) + self.QUEUE_OPEN_TIME
+        today_date = today.date()
         options = []
         for i in range(25):
-            date = today + timedelta(days=i)
-            options.append(discord.OptionChoice(
-                name=date.isoformat(), value=date.isoformat()))
+            date = today_date + timedelta(days=i)
+            name = date.strftime("%m/%d")
+            value = date.isoformat()
+            options.append(app_commands.Choice(name=name, value=value))
+
         return options
 
-    @commands.command(name="schedule_sq_times")
-    @commands.guild_only()
-    async def schedule_sq_times(self, ctx, timestamps: commands.Greedy[int]):
-        """Saves a list of sq times to skip over.  Input a list of unix utc timestamps.  Staff use only."""
-        if not self.is_staff(ctx.author) and not await self.bot.is_owner(ctx.author):
-            await self.queue_or_send(
-                ctx, "You do not have permission to use this command.")
+    def compute_first_event_of_date_open_time(self, date):
+        time_elapsed = date - self.FIRST_EVENT_TIME
+        num_launched_events = time_elapsed // self.QUEUE_OPEN_TIME
+        next_event_open_time = self.FIRST_EVENT_TIME + \
+            (self.QUEUE_OPEN_TIME * num_launched_events)
+        return next_event_open_time
+
+    async def time_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        date = None
+        timezone_choice = pytz.timezone("Etc/UTC")
+        timezone_offset = 0
+
+        if 'options' in interaction.data:
+            for option in interaction.data['options']:
+                if option['name'] == 'date':
+                    date = option['value']
+                if option['name'] == 'tzone':
+                    abbreviation = option['value']
+                    timezone_info = self.timezones.get(abbreviation, {})
+                    full_timezone_name = timezone_info.get(
+                        "zone_name", "Etc/UTC")
+                    timezone_offset = timezone_info.get(
+                        "offset", 0)
+                    timezone_choice = pytz.timezone(full_timezone_name)
+
+        time_options = []
+        if date and timezone_choice:
+            try:
+                selected_date = datetime.fromisoformat(date)
+                selected_date = selected_date.astimezone(
+                    timezone.utc) - timedelta(hours=timezone_offset)
+
+                curr_time = datetime.now(
+                    timezone.utc)
+                curr_date = self.compute_first_event_of_date_open_time(
+                    selected_date)
+                cutoff_date = selected_date + timedelta(hours=24)
+
+                while curr_date < cutoff_date and len(time_options) < 25:
+                    if curr_date > curr_time:
+                        adjusted_date = curr_date + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES
+                        tz_adjusted_date = adjusted_date + \
+                            timedelta(hours=timezone_offset)
+                        dt_str = adjusted_date.isoformat()
+                        name = tz_adjusted_date.strftime(
+                            f"%m/%d - %H:%M:%S")
+                        time_options.append(
+                            app_commands.Choice(name=name, value=dt_str))
+                    curr_date += self.QUEUE_OPEN_TIME
+
+            except ValueError as e:
+                print(f"Error parsing date: {e}", flush=True)
+
+        else:
+            time_options = [f"{hour:02d}:00" for hour in range(24)]
+            return [app_commands.Choice(name=time, value=time) for time in time_options]
+
+        return time_options
+
+    async def format_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        options = ["FFA", "2v2", "3v3", "4v4", "6v6"]
+        return [app_commands.Choice(name=option, value=option) for option in options]
+
+    @app_commands.command(name="schedule_forced_format_times")
+    @app_commands.autocomplete(tzone=timezone_autocomplete)
+    @app_commands.autocomplete(date=date_autocomplete)
+    @app_commands.autocomplete(time=time_autocomplete)
+    @app_commands.autocomplete(format=format_autocomplete)
+    @app_commands.guild_only()
+    async def schedule_forced_format_times(self, interaction: discord.Interaction, tzone: str, date: str, time: str, format: str):
+        """Schedule Squad Queue times. Staff use only."""
+        curr_time = datetime.now(timezone.utc)
+        dt = datetime.fromisoformat(time).replace(tzinfo=timezone.utc)
+        timestamp = dt.timestamp()
+
+        if curr_time > dt:
+            msg = ""
+            msg += f"Timestamp {timestamp} represents {time} and is in the past, submit a future date.\n"
+            msg += "This timestamp has not been added."
+            await interaction.response.send_message(msg)
             return
 
-        msg = "The queue will skip events THAT START AT THE TIMESTAMP (not when the queue pops)\n"
-        msg += "List of new Dates:\n"
+        new_event = (dt, format)
+        event_dict = {event[0]: event for event in self.forced_format_times}
+        event_dict[new_event[0]] = new_event
+        updated_list = list(event_dict.values())
+        self.forced_format_times = sorted(updated_list, key=lambda x: x[0])
+
+        if self.SCHEDULE_CHANNEL:
+            await self.update_forced_format_list()
+
+        msg = f"Added new {format} mogi at {discord.utils.format_dt(dt)}"
+
+        await interaction.response.send_message(msg)
+
+    async def remove_time_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        choices = [
+            app_commands.Choice(
+                name=f"{dt.strftime('%Y-%m-%d %H:%M:%S')} - {fmt}", value=dt.isoformat()
+            )
+            for dt, fmt in self.forced_format_times[:25]
+        ]
+        return choices
+
+    @app_commands.command(name="remove_forced_format_time")
+    @app_commands.autocomplete(time=remove_time_autocomplete)
+    async def remove_forced_format_time(self, interaction: discord.Interaction, time: str):
+        """Remove a specific forced format time by datetime.  Staff use only."""
+        try:
+            dt_to_remove = datetime.fromisoformat(time)
+
+            original_count = len(self.forced_format_times)
+            self.forced_format_times = [
+                entry for entry in self.forced_format_times if entry[0] != dt_to_remove
+            ]
+
+            if len(self.forced_format_times) < original_count:
+                await interaction.response.send_message(f"Removed {discord.utils.format_dt(dt_to_remove, 'f')} from the Forced Format times.")
+            else:
+                await interaction.response.send_message(f"No entry found for {time}.")
+
+            if self.SCHEDULE_CHANNEL:
+                await self.update_forced_format_list()
+        except ValueError:
+            await interaction.response.send_message("Invalid datetime format provided.")
+
+    @app_commands.command(name="clear_forced_format_times")
+    @app_commands.guild_only()
+    async def clear_forced_format_times(self, interaction: discord.Interaction):
+        """Clears current list of forced format times.  Staff use only."""
+        self.forced_format_times = []
+        if self.SCHEDULE_CHANNEL:
+            await self.update_forced_format_list()
+
+        await interaction.response.send_message("Cleared list of Forced Format Times.")
+
+    @app_commands.command(name="schedule_sq_times")
+    @app_commands.autocomplete(tzone=timezone_autocomplete)
+    @app_commands.autocomplete(date=date_autocomplete)
+    @app_commands.autocomplete(time=time_autocomplete)
+    @app_commands.guild_only()
+    async def schedule_sq_times(self, interaction: discord.Interaction, tzone: str, date: str, time: str):
+        """Schedule Squad Queue times. Staff use only."""
         curr_time = datetime.now(timezone.utc)
-        new_sq_dates = []
+        dt = datetime.fromisoformat(time).replace(tzinfo=timezone.utc)
+        timestamp = dt.timestamp()
 
-        for timestamp in timestamps:
-            date = datetime.fromtimestamp(timestamp, timezone.utc)
-            truncated_date = date.replace(
-                minute=0, second=0, microsecond=0)
+        if curr_time > dt:
+            msg = ""
+            msg += f"Timestamp {timestamp} represents {time} and is in the past, submit a future date.\n"
+            msg += "This timestamp has not been added."
+            await interaction.response.send_message(msg)
+            return
 
-            if curr_time > truncated_date:
-                msg = ""
-                msg += f"Timestamp {timestamp} represents {truncated_date} and is in the past, submit a future date.\n"
-                msg += "No timestamps from this usage of the command have been added."
-                await self.queue_or_send(ctx, msg)
-                return
-
-            new_sq_dates.append(truncated_date)
-            msg += f"{truncated_date}\n"
-
-        self.sq_times += new_sq_dates
+        self.sq_times.append(dt)
         self.sq_times = list(set(self.sq_times))
-
         list.sort(self.sq_times)
 
-        await self.queue_or_send(ctx, msg)
+        msg = "List of Squad Queue Times:\n"
+
+        for index, date in enumerate(self.sq_times):
+            msg += f"{index + 1}) {discord.utils.format_dt(date)}\n"
+
+        await interaction.response.send_message(msg)
 
     @app_commands.command(name="peek_sq_times")
     @app_commands.guild_only()
@@ -1003,6 +1240,26 @@ class SquadQueue(commands.Cog):
             msg += f"{index + 1}) {date}\n"
 
         await interaction.response.send_message(msg)
+
+    async def sq_time_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        choices = [
+            app_commands.Choice(name=dt.strftime(
+                "%Y-%m-%d %H:%M:%S"), value=dt.isoformat())
+            for dt in self.sq_times[:25]
+        ]
+        return choices
+
+    @app_commands.command(name="remove_sq_time")
+    @app_commands.autocomplete(time=sq_time_autocomplete)
+    async def remove_sq_time(self, interaction: discord.Interaction, time: str):
+        """Remove a specific Squad Queue time.  Staff use only."""
+        dt_to_remove = datetime.fromisoformat(time)
+
+        if dt_to_remove in self.sq_times:
+            self.sq_times.remove(dt_to_remove)
+            await interaction.response.send_message(f"Removed {discord.utils.format_dt(dt_to_remove, 'f')} from the Squad Queue times.")
+        else:
+            await interaction.response.send_message("Specified time not found in the Squad Queue times.", ephemeral=True)
 
     @app_commands.command(name="clear_sq_times")
     @app_commands.guild_only()
@@ -1065,7 +1322,17 @@ class SquadQueue(commands.Cog):
                             f"Skipping room {index} in function end_voting.",
                             flush=True)
                         continue
-                    await room.view.find_winner()
+                    if mogi.format == "FFA":
+                        await room.view.make_teams(1, "FFA")
+                    elif mogi.format == "2v2":
+                        await room.view.make_teams(2, "2v2")
+                    elif mogi.format == "3v3":
+                        await room.view.make_teams(3, "3v3")
+                    elif mogi.format == "4v4":
+                        await room.view.make_teams(4, "4v4")
+                    else:
+                        await room.view.find_winner()
+
         except Exception as e:
             print(traceback.format_exc())
 
@@ -1074,7 +1341,8 @@ class SquadQueue(commands.Cog):
         """Writes the teams, tier and average of each room per hour."""
         try:
             if mogi is not None:
-                await history_channel.send(f"{discord.utils.format_dt(mogi.display_time)} Rooms")
+                format_str = f"{mogi.format} " if mogi.format else ""
+                await history_channel.send(f"{discord.utils.format_dt(mogi.display_time)} {format_str}Rooms")
                 for index, room in enumerate(mogi.rooms, 1):
                     if not room or not room.view:
                         print(
@@ -1126,7 +1394,8 @@ class SquadQueue(commands.Cog):
     async def handle_voting_and_history(mogi: Mogi, history_channel: discord.TextChannel):
         # We could have used asyncio.call_later(120, handle_voting_and_history)
         # in the caller's code
-        await asyncio.sleep(120)
+        if not mogi.format:
+            await asyncio.sleep(120)
         await SquadQueue.end_voting(mogi)
         await SquadQueue.write_history(mogi, history_channel)
 
@@ -1266,6 +1535,9 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 self.ongoing_event.assign_roles(guild=self.GUILD))
         asyncio.create_task(SquadQueue.handle_voting_and_history(
             self.ongoing_event, self.HISTORY_CHANNEL))
+        if mogi.format:
+            if self.SCHEDULE_CHANNEL:
+                await self.update_forced_format_list()
         self.old_events.append(self.ongoing_event)
         self.ongoing_event = None
 
@@ -1376,8 +1648,9 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             self.ongoing_event.started = True
             self.ongoing_event.gathering = True
             await self.unlockdown(self.ongoing_event.mogi_channel)
+            format_str = f"{self.ongoing_event.format} " if self.ongoing_event.format else ""
             await self.ongoing_event.mogi_channel.send(
-                f"A queue is gathering for the mogi {discord.utils.format_dt(self.ongoing_event.start_time, style='R')} - Type `/c` to join, `/ch` to join and volunteer to host, and `/d` to drop.")
+                f"A queue is gathering for the {format_str}mogi {discord.utils.format_dt(self.ongoing_event.start_time, style='R')} - Type `/c` to join, `/ch` to join and volunteer to host, and `/d` to drop.")
 
     @tasks.loop(seconds=20.0)
     async def sqscheduler(self):
@@ -1423,8 +1696,13 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             # it's joining period and during its extension period
             if next_event_start_time < datetime.now(timezone.utc):
                 return
+            format = None
             if len(
-                    self.sq_times) > 0 and next_event_open_time == self.sq_times[0]:
+                    self.forced_format_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.forced_format_times[0][0]:
+                format = self.forced_format_times[0][1]
+                self.forced_format_times.pop(0)
+            if len(
+                    self.sq_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.sq_times[0]:
                 self.sq_times.pop(0)
                 self.next_event = None
                 self.ongoing_event = None
@@ -1444,7 +1722,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                                    mogi_channel=self.MOGI_CHANNEL,
                                    is_automated=True,
                                    start_time=next_event_start_time,
-                                   display_time=next_event_display_time)
+                                   display_time=next_event_display_time,
+                                   format=format)
 
             print(f"Started Queue for {next_event_start_time}", flush=True)
 

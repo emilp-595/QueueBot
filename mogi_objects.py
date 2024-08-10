@@ -56,7 +56,8 @@ class Mogi:
             is_automated=False,
             start_time=None,
             display_time=None,
-            additional_extension_minutes=0):
+            additional_extension_minutes=0,
+            format=None):
         self.started = False
         self.gathering = False
         self.making_rooms_run = False
@@ -72,6 +73,7 @@ class Mogi:
         self.display_time = display_time if is_automated else None
         self.additional_extension = timedelta(
             minutes=additional_extension_minutes)
+        self.format = format
         self.has_checked_auto_extend = False
 
     @property
@@ -632,7 +634,7 @@ class VoteView(View):
 
         if common.SERVER is common.Server.MK8DX:
             msg += f"\nTable: `/scoreboard`\n"
-            msg += f"RandomBot Scoreboard: `/scoreboard {teams_per_room} {', '.join(scoreboard_text)}`\n\n"
+            msg += f"RandomBot Scoreboard: `/scoreboard {teams_per_room} {', '.join(scoreboard_text)}`\n"
         elif common.SERVER is common.Server.MKW and vote_str == "6v6":
             captain_1 = teams[0].players[0]
             captain_2 = teams[1].players[0]
