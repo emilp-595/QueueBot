@@ -9,6 +9,7 @@
 	"queue_list_channel": 1221665101904478340,
 	"queue_history_channel": 1194440106266865684,
     "queue_general_channel": 1186158671525318719,
+    "queue_schedule_channel": null,
     "admin_roles": [
         464610815299944448,
         910528103225389107
@@ -39,7 +40,7 @@
     "JOINING_TIME": 55,
     "DISPLAY_OFFSET_MINUTES": 5,
     "EXTENSION_TIME": 3,
-    "ROOM_JOIN_PENALTY_TIME": 5,
+    "ROOM_JOIN_PENALTY_TIME": 6,
     "MOGI_LIFETIME": 180,
     "SUB_RANGE_MMR_ALLOWANCE": 500, 
     "SUB_MESSAGE_LIFETIME_SECONDS": 1200,
