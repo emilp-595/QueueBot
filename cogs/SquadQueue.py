@@ -1330,6 +1330,8 @@ class SquadQueue(commands.Cog):
                         await room.view.make_teams(3, "3v3")
                     elif mogi.format == "4v4":
                         await room.view.make_teams(4, "4v4")
+                    elif mogi.format == "6v6":
+                        await room.view.make_teams(6, "6v6")
                     else:
                         await room.view.find_winner()
 
