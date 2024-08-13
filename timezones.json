@@ -1,34 +1,130 @@
 {
-	"ACDT": 10.5,
-	"ACST": 9.5,
-	"ADT": -3,
-	"AEDT": 11,
-	"AEST": 10,
-	"AKDT": -8,
-	"AKST": -9,
-	"AST": -4,
-	"AWDT": 9,
-	"AWST": 8,
-	"BST": 1,
-	"CDT": -5,
-	"CEST": 2,
-	"CET": 1,
-	"CLST": -3,
-	"CLT": -4,
-	"CST": -6,
-	"EDT": -4,
-	"EST": -5,
-	"GMT": 0,
-	"HDT": -9,
-	"HST": -8,
-	"IST": 5.5,
-	"JST": 9,
-	"KST": 9,
-	"MDT": -6,
-	"MST": -7,
-	"NDT": -2.5,
-	"NST": -3.5,
-	"PDT": -7,
-	"PST": -8,
-	"UTC": 0
+    "ACDT": {
+        "offset": 10.5,
+        "zone_name": "Australia/Adelaide"
+    },
+    "ACST": {
+        "offset": 9.5,
+        "zone_name": "Australia/Adelaide"
+    },
+    "ADT": {
+        "offset": -3,
+        "zone_name": "America/Halifax"
+    },
+    "AEDT": {
+        "offset": 11,
+        "zone_name": "Australia/Sydney"
+    },
+    "AEST": {
+        "offset": 10,
+        "zone_name": "Australia/Sydney"
+    },
+    "AKDT": {
+        "offset": -8,
+        "zone_name": "America/Anchorage"
+    },
+    "AKST": {
+        "offset": -9,
+        "zone_name": "America/Anchorage"
+    },
+    "AST": {
+        "offset": -4,
+        "zone_name": "America/Anchorage"
+    },
+    "AWDT": {
+        "offset": 9,
+        "zone_name": "Australia/Perth"
+    },
+    "AWST": {
+        "offset": 8,
+        "zone_name": "Australia/Perth"
+    },
+    "BST": {
+        "offset": 1,
+        "zone_name": "Europe/London"
+    },
+    "CDT": {
+        "offset": -5,
+        "zone_name": "America/Chicago"
+    },
+    "CEST": {
+        "offset": 2,
+        "zone_name": "Europe/Berlin"
+    },
+    "CET": {
+        "offset": 1,
+        "zone_name": "Europe/Berlin"
+    },
+    "CLST": {
+        "offset": -3,
+        "zone_name": "Chile/Continental"
+    },
+    "CLT": {
+        "offset": -4,
+        "zone_name": "Chile/Continental"
+    },
+    "CST": {
+        "offset": -6,
+        "zone_name": "America/Chicago"
+    },
+    "EDT": {
+        "offset": -4,
+        "zone_name": "America/New_York"
+    },
+    "EST": {
+        "offset": -5,
+        "zone_name": "America/New_York"
+    },
+    "GMT": {
+        "offset": 0,
+        "zone_name": "Etc/GMT"
+    },
+    "HDT": {
+        "offset": -9,
+        "zone_name": "Pacific/Honolulu"
+    },
+    "HST": {
+        "offset": -8,
+        "zone_name": "Pacific/Honolulu"
+    },
+    "IST": {
+        "offset": 5.5,
+        "zone_name": "Asia/Kolkata"
+    },
+    "JST": {
+        "offset": 9,
+        "zone_name": "Asia/Tokyo"
+    },
+    "KST": {
+        "offset": 9,
+        "zone_name": "Asia/Seoul"
+    },
+    "MDT": {
+        "offset": -6,
+        "zone_name": "America/Denver"
+    },
+    "MST": {
+        "offset": -7,
+        "zone_name": "America/Denver"
+    },
+    "NDT": {
+        "offset": -2.5,
+        "zone_name": "Canada/Newfoundland"
+    },
+    "NST": {
+        "offset": -3.5,
+        "zone_name": "Canada/Newfoundland"
+    },
+    "PDT": {
+        "offset": -7,
+        "zone_name": "America/Los_Angeles"
+    },
+    "PST": {
+        "offset": -8,
+        "zone_name": "America/Los_Angeles"
+    },
+    "UTC": {
+        "offset": 0,
+        "zone_name": "Etc/UTC"
+    }
 }
