@@ -323,19 +323,23 @@ class SquadQueue(commands.Cog):
                 schedule_channel_id)
         if common.SERVER is common.Server.MKW:
             await self.get_ladder_info()
+
+        def is_queuebot(m: discord.Message):
+            return m.author.id == self.bot.user.id
+        purge_after = datetime.now(timezone.utc) - timedelta(days=1)
         try:
-            await self.LIST_CHANNEL.purge()
+            await self.LIST_CHANNEL.purge(check=is_queuebot, after=purge_after)
         except BaseException:
             print("Purging List channel failed", flush=True)
             print(traceback.format_exc())
         try:
-            await self.SUB_CHANNEL.purge()
+            await self.SUB_CHANNEL.purge(check=is_queuebot, after=purge_after)
         except BaseException:
             print("Purging Sub channel failed", flush=True)
             print(traceback.format_exc())
         try:
             if schedule_channel_id:
-                await self.SCHEDULE_CHANNEL.purge()
+                await self.SCHEDULE_CHANNEL.purge(check=is_queuebot, after=purge_after)
                 await self.update_forced_format_list()
         except BaseException:
             print("Purging Schedule channel failed", flush=True)
@@ -683,7 +687,7 @@ class SquadQueue(commands.Cog):
             if common.SERVER is common.Server.MKW:
                 for i, player in enumerate(on_time_players, 1):
                     adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
-                    msg += f"{i}) {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
+                    msg += f"`{i}.` {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
                 if len(on_time_players) == 0:  # Text looks better this way
@@ -691,12 +695,12 @@ class SquadQueue(commands.Cog):
                 msg += "**Late Players:**\n"
                 for i, player in enumerate(late_players, 1):
                     adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
-                    msg += f"{i}) {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
+                    msg += f"`{i}.` {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
             elif common.SERVER is common.Server.MK8DX:
                 all_confirmed_players.sort(reverse=True)
                 for i, player in enumerate(all_confirmed_players, 1):
-                    late_str = " (late)" if player in late_players else ""
-                    msg += f"{i}) {player.lounge_name} ({player.mmr} MMR){late_str}\n"
+                    late_str = " `*`" if player in late_players else ""
+                    msg += f"`{i}.` {player.lounge_name} ({player.mmr} MMR){late_str}\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
             msg += f"\n**Last Updated:** {discord.utils.format_dt(datetime.now(timezone.utc), style='R')}"
