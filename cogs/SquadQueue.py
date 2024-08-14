@@ -1135,7 +1135,7 @@ class SquadQueue(commands.Cog):
     @app_commands.autocomplete(format=format_autocomplete)
     @app_commands.guild_only()
     async def schedule_forced_format_times(self, interaction: discord.Interaction, tzone: str, date: str, time: str, format: str):
-        """Schedule Squad Queue times. Staff use only."""
+        """Schedule mogis to have all rooms be specific format. Staff use only."""
         curr_time = datetime.now(timezone.utc)
         dt = datetime.fromisoformat(time).replace(tzinfo=timezone.utc)
         timestamp = dt.timestamp()
