@@ -576,13 +576,35 @@ class VoteView(View):
                       "6v6": []
                       }
 
-        self.add_button("FFA", self.general_vote_callback)
-        self.add_button("2v2", self.general_vote_callback)
-        self.add_button("3v3", self.general_vote_callback)
-        self.add_button("4v4", self.general_vote_callback)
+    async def create_message(self):
+        if self.mogi.format:
+            await self.room_channel.send(
+                content=f"The format **{self.mogi.format}** has been selected!",
+                view=self
+            )
 
-        if common.SERVER is common.Server.MKW:
-            self.add_button("6v6", self.general_vote_callback)
+            if self.mogi.format == "FFA":
+                await self.make_teams(1, "FFA")
+            elif self.mogi.format == "2v2":
+                await self.make_teams(2, "2v2")
+            elif self.mogi.format == "3v3":
+                await self.make_teams(3, "3v3")
+            elif self.mogi.format == "4v4":
+                await self.make_teams(4, "4v4")
+            elif self.mogi.format == "6v6":
+                await self.make_teams(6, "6v6")
+        else:
+            self.add_button("FFA", self.general_vote_callback)
+            self.add_button("2v2", self.general_vote_callback)
+            self.add_button("3v3", self.general_vote_callback)
+            self.add_button("4v4", self.general_vote_callback)
+
+            if common.SERVER is common.Server.MKW:
+                self.add_button("6v6", self.general_vote_callback)
+
+            await self.room_channel.send(
+                view=self
+            )
 
     async def make_teams(self, players_per_team: int, vote_str: str):
         if common.SERVER is common.Server.MKW:
@@ -596,16 +618,19 @@ class VoteView(View):
 
         room = self.mogi.get_room_from_channel_id(self.room_channel.id)
 
-        msg = f"""**Poll Ended!**
+        msg = "ㅤ\n"
+
+        if not self.mogi.format:
+            msg = f"""**Poll Ended!**
 
 1) FFA - {len(self.votes['FFA'])}
 2) 2v2 - {len(self.votes['2v2'])}
 3) 3v3 - {len(self.votes['3v3'])}
 4) 4v4 - {len(self.votes['4v4'])}
 """
-        if common.SERVER is common.Server.MKW:
-            msg += f"5) 6v6 - {len(self.votes['6v6'])}\n"
-        msg += f"Winner: {vote_str}\n\n"
+            if common.SERVER is common.Server.MKW:
+                msg += f"5) 6v6 - {len(self.votes['6v6'])}\n"
+            msg += f"Winner: {vote_str}\n\n"
 
         self.header_text = ""
         tier_text = "Tier " if common.SERVER is common.Server.MK8DX else "T"
