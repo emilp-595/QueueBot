@@ -1315,25 +1315,14 @@ class SquadQueue(commands.Cog):
     async def end_voting(mogi: Mogi):
         """Ends voting in all rooms with ongoing votes."""
         try:
-            if mogi is not None:
+            if mogi and not mogi.format:
                 for index, room in enumerate(mogi.rooms, 1):
                     if not room or not room.view:
                         print(
                             f"Skipping room {index} in function end_voting.",
                             flush=True)
                         continue
-                    if mogi.format == "FFA":
-                        await room.view.make_teams(1, "FFA")
-                    elif mogi.format == "2v2":
-                        await room.view.make_teams(2, "2v2")
-                    elif mogi.format == "3v3":
-                        await room.view.make_teams(3, "3v3")
-                    elif mogi.format == "4v4":
-                        await room.view.make_teams(4, "4v4")
-                    elif mogi.format == "6v6":
-                        await room.view.make_teams(6, "6v6")
-                    else:
-                        await room.view.find_winner()
+                    await room.view.find_winner()
 
         except Exception as e:
             print(traceback.format_exc())
@@ -1500,7 +1489,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                         self.ROOM_JOIN_PENALTY_TIME,
                         sent_msg.jump_url)
                     curr_room.view = view
-                    await curr_room.channel.send(view=view)
+                    await view.create_message()
                 except discord.DiscordException:
                     err_msg = f"\nAn error has occurred while creating the room channel; please contact your opponents in DM or another channel\n"
                     err_msg += player_mentions + extra_member_mentions
