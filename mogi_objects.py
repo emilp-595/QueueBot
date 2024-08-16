@@ -671,8 +671,7 @@ class VoteView(View):
 3. **{captain_1.lounge_name}** picks 2 players
 4. **{captain_2.lounge_name}** picks 2 players
 5. **{captain_1.lounge_name}** picks 2 players
-6. **{captain_2.lounge_name}** picks 2 players
-7. **{captain_1.lounge_name}** picks 1 player\n"""
+6. **{captain_2.lounge_name}** picks 1 players\n"""
 
         penalty_time = self.mogi.making_rooms_run_time + \
             timedelta(minutes=self.penalty_time)
