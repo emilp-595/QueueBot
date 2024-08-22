@@ -166,6 +166,11 @@ class SquadQueue(commands.Cog):
 
         self.forced_format_times: List[Tuple[datetime, str]] = []
 
+        self.forced_format_order: List[str] = bot.config["FORCED_FORMAT_ORDER"]
+
+        self.queues_between_forced_format_queue: int | None = bot.config[
+            "QUEUES_BETWEEN_FORCED_FORMAT_QUEUE"]
+
         # Parameters for tracking if we should send an extension message or not
         self.last_extension_message_timestamp = datetime.now(
             timezone.utc).replace(second=0, microsecond=0)
@@ -238,6 +243,14 @@ class SquadQueue(commands.Cog):
         # event in a daily schedule.
         self.FIRST_EVENT_TIME = datetime.combine(datetime.utcnow().date(), datetime.min.time(
         ), tzinfo=timezone.utc) + timedelta(minutes=bot.config["FIRST_EVENT_TIME"])
+
+        self.FORCED_FORMAT_FIRST_EVENT = datetime(
+            2024, 8, 1, 0, 0, 0, tzinfo=timezone.utc) + timedelta(minutes=bot.config["FIRST_EVENT_TIME"]) \
+            + timedelta(hours=bot.config["FORCED_FORMAT_HOURLY_OFFSET"])
+
+        self.FORCED_FORMAT_ORDER_OFFSET = bot.config["FORCED_FORMAT_ORDER_OFFSET"]
+
+        self.FORCED_FORMAT_AUTOSCHEDULE_AMOUNT = bot.config["FORCED_FORMAT_AUTOSCHEDULE_AMOUNT"]
 
         # If we're testing, set the time to the current time so we start a new
         # event immediately
@@ -340,7 +353,8 @@ class SquadQueue(commands.Cog):
         try:
             if schedule_channel_id:
                 await self.SCHEDULE_CHANNEL.purge(check=is_queuebot, after=purge_after)
-                await self.update_forced_format_list()
+                if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
+                    await self.autoschedule_forced_format_times()
         except BaseException:
             print("Purging Schedule channel failed", flush=True)
             print(traceback.format_exc())
@@ -1164,6 +1178,36 @@ class SquadQueue(commands.Cog):
 
         await interaction.response.send_message(msg)
 
+    async def autoschedule_forced_format_times(self):
+        """Schedule the next batch of forced format mogis automatically."""
+        event_dict = {event[0]: event for event in self.forced_format_times}
+        time_between_ff_queues = self.queues_between_forced_format_queue * self.QUEUE_OPEN_TIME
+
+        last_event = self.FORCED_FORMAT_FIRST_EVENT
+        start_index = 0
+        while last_event < datetime.now(timezone.utc):
+            last_event += time_between_ff_queues
+            start_index += 1
+
+        total_iterations = self.FORCED_FORMAT_AUTOSCHEDULE_AMOUNT * \
+            len(self.forced_format_order)
+
+        for i in range(total_iterations):
+            current_index = (
+                start_index + i + self.FORCED_FORMAT_ORDER_OFFSET) % len(self.forced_format_order)
+            format = self.forced_format_order[current_index]
+
+            new_event_time = last_event + i * time_between_ff_queues + \
+                self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES
+            new_event = (new_event_time, format)
+            event_dict[new_event[0]] = new_event
+
+        updated_list = list(event_dict.values())
+        self.forced_format_times = sorted(updated_list, key=lambda x: x[0])
+
+        if self.SCHEDULE_CHANNEL:
+            await self.update_forced_format_list()
+
     async def remove_time_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         choices = [
             app_commands.Choice(
@@ -1453,11 +1497,13 @@ class SquadQueue(commands.Cog):
                 potential_host_str = curr_room.get_host_str()
                 if potential_host_str == "":
                     potential_host_str += f"No one in the room queued as host. Decide a host amongst yourselves."
-                vote_formats = "FFA, 2v2, 3v3, 4v4" if common.SERVER is common.Server.MK8DX else "FFA, 2v2, 3v3, 4v4, 6v6"
-                room_msg += f"""
-{potential_host_str}
+                room_msg += f"{potential_host_str}\n"
 
-Vote for format {vote_formats}.
+                if not mogi.format:
+                    vote_formats = "FFA, 2v2, 3v3, 4v4" if common.SERVER is common.Server.MK8DX else "FFA, 2v2, 3v3, 4v4, 6v6"
+                    room_msg += f"Vote for format {vote_formats}.\n"
+
+                room_msg += f"""
 {player_mentions} {extra_member_mentions}
 
 If you need staff's assistance, use the `/ping_staff` command in this channel."""
@@ -1694,8 +1740,10 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             format = None
             if len(
                     self.forced_format_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.forced_format_times[0][0]:
-                format = self.forced_format_times[0][1]
-                self.forced_format_times.pop(0)
+                last_event = self.forced_format_times.pop(0)
+                format = last_event[1]
+                if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue and len(self.forced_format_times) == 0:
+                    await self.autoschedule_forced_format_times()
             if len(
                     self.sq_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.sq_times[0]:
                 self.sq_times.pop(0)

@@ -9,7 +9,7 @@
 	"queue_list_channel": 1221665101904478340,
 	"queue_history_channel": 1194440106266865684,
     "queue_general_channel": 1186158671525318719,
-    "queue_schedule_channel": null,
+    "queue_schedule_channel": 1274492585917812807,
     "admin_roles": [
         464610815299944448,
         910528103225389107
@@ -36,6 +36,11 @@
     "track_type": "rt",
     "FIRST_EVENT_TIME": 0,
     "FIRST_EVENT_TIME_DESCRIPTION": "First event time is the number of minutes from 0:00 UTC that the bot would run the first event of the day. As an example, if this were set to 5, and the QUEUE_OPEN_TIME were set to 70, and the bot were to reboot at 2:00 UTC, the next event would immediately start and create rooms at 2:25 UTC.",
+    "FORCED_FORMAT_ORDER": ["FFA", "3v3", "FFA", "4v4"],
+    "FORCED_FORMAT_ORDER_OFFSET": 3,
+    "FORCED_FORMAT_HOURLY_OFFSET": 0,
+    "FORCED_FORMAT_AUTOSCHEDULE_AMOUNT": 1,
+    "QUEUES_BETWEEN_FORCED_FORMAT_QUEUE": 9,
     "QUEUE_OPEN_TIME": 60,
     "JOINING_TIME": 55,
     "DISPLAY_OFFSET_MINUTES": 5,
