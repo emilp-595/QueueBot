@@ -1395,7 +1395,12 @@ class SquadQueue(commands.Cog):
                         msg += f"{room.channel.jump_url}\n"
                     msg += room.view.teams_text
                     msg += "ㅤ"
-                    await history_channel.send(msg)
+                    try:
+                        await history_channel.send(msg)
+                    except discord.HTTPException as e:
+                        print(
+                            f"HTTP error while writing room {index} in function write_history, skipping to next room.",
+                            flush=True)
         except Exception as e:
             print(traceback.format_exc())
 

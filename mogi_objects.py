@@ -565,6 +565,7 @@ class VoteView(View):
         self.mogi = mogi
         self.room = room
         self.header_text = ""
+        self.message = None
         self.room_start_msg_link = room_start_msg_link
         self.teams_text = ""
         self.found_winner = False
@@ -602,7 +603,7 @@ class VoteView(View):
             if common.SERVER is common.Server.MKW:
                 self.add_button("6v6", self.general_vote_callback)
 
-            await self.room_channel.send(
+            self.message = await self.room_channel.send(
                 view=self
             )
 
@@ -695,11 +696,16 @@ class VoteView(View):
         room.teams = teams
 
         self.found_winner = True
-        await self.room_channel.send(msg)
-        if common.CONFIG["USE_THREADS"]:
-            new_thread_name = self.room_channel.name + \
-                f" - {tier_text}{room.tier}"
-            await self.room_channel.edit(name=new_thread_name)
+        try:
+            await self.room_channel.send(msg)
+            if common.CONFIG["USE_THREADS"]:
+                new_thread_name = self.room_channel.name + \
+                    f" - {tier_text}{room.tier}"
+                await self.room_channel.edit(name=new_thread_name)
+        except discord.HTTPException as e:
+            print(
+                f"HTTP error while ending voting for room {self.room.room_num} in function end_voting, skipping to next room.",
+                flush=True)
 
     async def find_winner(self):
         if not self.found_winner:
@@ -721,6 +727,13 @@ class VoteView(View):
 
             for curr_button in self.children:
                 curr_button.disabled = True
+
+            if self.message:
+                try:
+                    await self.message.edit(view=self)
+                except discord.errors.NotFound:
+                    print(
+                        f"Failed to edit message for interaction: {self.message.id}. Message is no longer valid.", flush=True)
 
             await self.make_teams(*winner)
 
@@ -752,7 +765,11 @@ class VoteView(View):
                 curr_button.label = f"{curr_button.custom_id}: {len(self.votes[curr_button.custom_id])}"
                 if self.found_winner:
                     curr_button.disabled = True
-        await interaction.response.edit_message(view=self)
+        try:
+            await interaction.response.edit_message(view=self)
+        except discord.errors.NotFound:
+            print(
+                f"Failed to edit message for interaction: {interaction.id}. Interaction is no longer valid.", flush=True)
 
 
 class JoinView(View):
