@@ -1502,7 +1502,7 @@ class SquadQueue(commands.Cog):
                 potential_host_str = curr_room.get_host_str()
                 if potential_host_str == "":
                     potential_host_str += f"No one in the room queued as host. Decide a host amongst yourselves."
-                room_msg += f"{potential_host_str}\n"
+                room_msg += f"\n{potential_host_str}\n"
 
                 if not mogi.format:
                     vote_formats = "FFA, 2v2, 3v3, 4v4" if common.SERVER is common.Server.MK8DX else "FFA, 2v2, 3v3, 4v4, 6v6"
