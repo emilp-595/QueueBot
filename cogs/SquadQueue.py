@@ -339,7 +339,9 @@ class SquadQueue(commands.Cog):
 
         def is_queuebot(m: discord.Message):
             return m.author.id == self.bot.user.id
-        purge_after = datetime.now(timezone.utc) - timedelta(days=1)
+        purge_after_amt = 365 if self.is_production else 1
+        purge_after = datetime.now(timezone.utc) - \
+            timedelta(days=purge_after_amt)
         try:
             await self.LIST_CHANNEL.purge(check=is_queuebot, after=purge_after)
         except BaseException:
