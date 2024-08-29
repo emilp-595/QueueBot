@@ -339,7 +339,9 @@ class SquadQueue(commands.Cog):
 
         def is_queuebot(m: discord.Message):
             return m.author.id == self.bot.user.id
-        purge_after = datetime.now(timezone.utc) - timedelta(days=1)
+        purge_after_amt = 365 if self.is_production else 1
+        purge_after = datetime.now(timezone.utc) - \
+            timedelta(days=purge_after_amt)
         try:
             await self.LIST_CHANNEL.purge(check=is_queuebot, after=purge_after)
         except BaseException:
@@ -1381,7 +1383,8 @@ class SquadQueue(commands.Cog):
         try:
             if mogi is not None:
                 format_str = f"{mogi.format} " if mogi.format else ""
-                await history_channel.send(f"{discord.utils.format_dt(mogi.display_time)} {format_str}Rooms")
+                rooms_str = "Room" if len(mogi.rooms) == 1 else "Rooms"
+                await history_channel.send(f"{discord.utils.format_dt(mogi.display_time)} - {len(mogi.rooms)} {format_str}{rooms_str}")
                 for index, room in enumerate(mogi.rooms, 1):
                     if not room or not room.view:
                         print(
