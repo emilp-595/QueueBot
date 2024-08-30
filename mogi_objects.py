@@ -651,8 +651,11 @@ class VoteView(View):
 
         for j in range(teams_per_room):
             team_text = f"`{j + 1}.` "
-            team_names = ", ".join([p.lounge_name for p in teams[j].players])
-            scoreboard_text.append(team_names)
+            team_names = ", ".join([discord.utils.escape_markdown(
+                p.lounge_name) for p in teams[j].players])
+            raw_team_names = ", ".join(
+                [p.lounge_name for p in teams[j].players])
+            scoreboard_text.append(raw_team_names)
             team_text += team_names
             team_text += f" ({int(teams[j].avg_mmr)} MMR)\n"
             msg += team_text
