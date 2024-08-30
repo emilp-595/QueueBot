@@ -703,7 +703,7 @@ class SquadQueue(commands.Cog):
             if common.SERVER is common.Server.MKW:
                 for i, player in enumerate(on_time_players, 1):
                     adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
-                    msg += f"`{i}.` {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
+                    msg += f"`{i}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} {adjusted_mmr_text}MMR)\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
                 if len(on_time_players) == 0:  # Text looks better this way
@@ -716,7 +716,7 @@ class SquadQueue(commands.Cog):
                 all_confirmed_players.sort(reverse=True)
                 for i, player in enumerate(all_confirmed_players, 1):
                     late_str = " `*`" if player in late_players else ""
-                    msg += f"`{i}.` {player.lounge_name} ({player.mmr} MMR){late_str}\n"
+                    msg += f"`{i}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} MMR){late_str}\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
             msg += f"\n**Last Updated:** {discord.utils.format_dt(datetime.now(timezone.utc), style='R')}"
@@ -1490,8 +1490,8 @@ class SquadQueue(commands.Cog):
             for player_num, player in enumerate(room_players, 1):
                 added_str = ": **Added from late players**" if player in late_player_list else ""
                 adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
-                mogi_channel_msg += f"`{player_num}.` {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR){added_str}\n"
-                room_msg += f"`{player_num}.` {player.lounge_name} ({player.mmr} MMR)\n"
+                mogi_channel_msg += f"`{player_num}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} {adjusted_mmr_text}MMR){added_str}\n"
+                room_msg += f"`{player_num}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} MMR)\n"
             if not self.allowed_players_check(room_players):
                 mogi_channel_msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
