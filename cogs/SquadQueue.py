@@ -779,9 +779,22 @@ class SquadQueue(commands.Cog):
 
                 msg += "\n"
 
+            current_rotation = ', '.join(self.forced_format_order)
+
+            msg += f"**Current Rotation** - {current_rotation}\n"
+
+            time_between_ff_queues = self.queues_between_forced_format_queue * self.QUEUE_OPEN_TIME
+            time_between_ff_queues_hours = time_between_ff_queues.total_seconds() / 3600
+
+            if time_between_ff_queues_hours.is_integer():
+                msg += f"**Current Interval** - {int(time_between_ff_queues_hours)} hours\n\n"
+            else:
+                time_between_ff_queues_minutes = time_between_ff_queues.total_seconds() / 60
+                msg += f"**Current Interval** - {int(time_between_ff_queues_minutes)} minutes\n\n"
+
             msg += "**List of Mogis with Scheduled Formats:**\n\n"
             for index, event in enumerate(self.forced_format_times):
-                msg += f"{index + 1}) {discord.utils.format_dt(event[0])} - {event[1]}\n"
+                msg += f"`#{index + 1}` **{event[1]}:** {discord.utils.format_dt(event[0])} - {discord.utils.format_dt(event[0], style='R')}\n"
             message = msg.split("\n")
 
             new_messages = []
