@@ -219,7 +219,7 @@ class SquadQueue(commands.Cog):
 
         self.TRACK_TYPE = bot.config["track_type"]
 
-        self.TIER_INFO = []
+        # self.TIER_INFO = []
 
         # Time between each event queue opening
         self.QUEUE_OPEN_TIME = timedelta(minutes=bot.config["QUEUE_OPEN_TIME"])
@@ -334,8 +334,6 @@ class SquadQueue(commands.Cog):
         if schedule_channel_id:
             self.SCHEDULE_CHANNEL = self.bot.get_channel(
                 schedule_channel_id)
-        if common.SERVER is common.Server.MKW:
-            await self.get_ladder_info()
 
         def is_queuebot(m: discord.Message):
             return m.author.id == self.bot.user.id
@@ -1332,48 +1330,7 @@ class SquadQueue(commands.Cog):
 
         await interaction.response.send_message("Cleared list of Squad Queue Times.")
 
-    @app_commands.command(name="update_tier_info")
-    @app_commands.guild_only()
-    async def update_tier_info(self, interaction: discord.Interaction):
-        """Updates the mmr divisions that denote each tier.  Staff use only."""
-        msg = await self.get_ladder_info()
-        await interaction.response.send_message(msg)
-
-    async def get_ladder_info(self):
-        timeout = aiohttp.ClientTimeout(total=10)
-        url = "https://mkwlounge.gg/api/ladderclass.php?ladder_type=" + self.TRACK_TYPE
-        msg = ""
-        try:
-            async with aiohttp.ClientSession(
-                    timeout=timeout,
-                    auth=aiohttp.BasicAuth(
-                        "username", "password")) as session:
-                async with session.get(url, headers=headers) as resp:
-                    if resp.status != 200:
-                        raise Exception(
-                            "Fetch for tier info has failed, bad status code")
-                    result = await resp.json()
-                    if result['status'] != "success":
-                        raise Exception(
-                            "Fetch for tier info has failed, Status: Failure")
-                    self.TIER_INFO = result["results"]
-                    msg += "Fetch for Tier Info Successful.\n"
-                    for tier in self.TIER_INFO:
-                        boundary = ""
-                        if tier["minimum_mmr"]:
-                            boundary += f"{tier['minimum_mmr']}-"
-                        else:
-                            boundary += "<"
-                        if tier["maximum_mmr"]:
-                            boundary += f"{tier['maximum_mmr']}"
-                        else:
-                            boundary = f">{tier['minimum_mmr']}"
-                        msg += f"T{tier['ladder_order']} Boundary: {boundary}\n"
-                    print(msg, flush=True)
-                    return msg
-        except Exception as e:
-            print(traceback.format_exc())
-
+    
     @staticmethod
     async def end_voting(mogi: Mogi):
         """Ends voting in all rooms with ongoing votes."""
