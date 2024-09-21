@@ -219,7 +219,7 @@ class SquadQueue(commands.Cog):
 
         self.TRACK_TYPE = bot.config["track_type"]
 
-        # self.TIER_INFO = []
+        self.TIER_INFO = []
 
         # Time between each event queue opening
         self.QUEUE_OPEN_TIME = timedelta(minutes=bot.config["QUEUE_OPEN_TIME"])
