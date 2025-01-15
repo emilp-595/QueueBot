@@ -615,7 +615,13 @@ class VoteView(View):
         elif common.SERVER is common.Server.MK8DX:
             self.mogi.making_rooms_run_time = self.mogi.start_time + \
                 timedelta(minutes=5)
-        random.shuffle(self.players)
+        if common.SERVER is common.Server.MK8DX and vote_str == "6v6":
+            pop_to_end = [8, 7, 4, 3, 0]
+            for i in pop_to_end:
+                player = self.players.pop(i)
+                self.players.append(player)
+        else:
+            random.shuffle(self.players)
 
         room = self.mogi.get_room_from_channel_id(self.room_channel.id)
 
