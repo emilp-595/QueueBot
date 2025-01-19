@@ -647,8 +647,9 @@ class VoteView(View):
         teams = []
         teams_per_room = 12 // players_per_team
         for j in range(teams_per_room):
-            team = Team(
-                self.players[j * players_per_team:(j + 1) * players_per_team])
+            players = sorted(self.players[j * players_per_team:(j + 1) * players_per_team],
+                             key=lambda player: player.mmr, reverse=True)
+            team = Team(players)
             teams.append(team)
 
         teams.sort(key=lambda team: team.avg_mmr, reverse=True)
