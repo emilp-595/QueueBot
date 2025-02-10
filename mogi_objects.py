@@ -840,7 +840,7 @@ class JoinView(View):
 def get_tier_mkw(mmr: int):
     if mmr > 10999:
         return '8'
-    if mmr > 9499:
+    if mmr > 9999:
         return '7'
     if mmr > 7999:
         return '6'
