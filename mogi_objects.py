@@ -320,7 +320,7 @@ class Room:
         if common.SERVER is common.Server.MK8DX:
             return get_tier_mk8dx(round(self.avg_mmr) - 500)
         if common.SERVER is common.Server.MKW:
-            return str(get_tier_mkw(self.avg_mmr))
+            return str(get_tier_mkw(self.avg_mmr, self.players))
 
     @property
     def tier_collection(self) -> str:
@@ -837,10 +837,10 @@ class JoinView(View):
                 "You do not meet room requirements", ephemeral=True)
 
 
-def get_tier_mkw(mmr: int):
-    if mmr > 10999:
+def get_tier_mkw(mmr: int, players: List[Player]):
+    if mmr > 10499 and player_threshold_check(10500, players):
         return '8'
-    if mmr > 9999:
+    if mmr > 8999 and player_threshold_check(9000, players):
         return '7'
     if mmr > 7999:
         return '6'
@@ -856,11 +856,17 @@ def get_tier_mkw(mmr: int):
         return '1'
     else:
         return '0'
-    #for tier in tier_info:
+	#for tier in tier_info:
         #if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
                 #tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
             #return tier["ladder_order"]
 
+		
+def player_threshold_check(mmr: int, players: List[Player]):
+	for player in players:
+		if player.mmr < mmr:
+			return False
+	return True
 
 def get_tier_mk8dx(mmr: int):
     if mmr > 14000:
