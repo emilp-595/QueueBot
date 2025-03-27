@@ -567,7 +567,7 @@ class SquadQueue(commands.Cog):
             if players[0].is_matchmaking_mmr_adjusted:
                 msg += f"\nPlayer considered {players[0].adjusted_mmr} MMR for matchmaking purposes."
 
-        event_status_launched = self.check_close_event_change()
+        event_status_launched = await self.check_close_event_change()
         try:
             await interaction.response.send_message(msg)
         finally:
@@ -594,7 +594,7 @@ class SquadQueue(commands.Cog):
         msg += f" from the mogi {discord.utils.format_dt(mogi.start_time, style='R')}"
         msg += f", `[{mogi.count_registered()} players]`"
 
-        event_status_launched = self.check_close_event_change()
+        event_status_launched = await self.check_close_event_change()
         try:
             await interaction.response.send_message(msg)
         finally:
@@ -912,7 +912,7 @@ class SquadQueue(commands.Cog):
         msg += f" from the mogi {discord.utils.format_dt(mogi.start_time, style='R')}"
         msg += f", `[{mogi.count_registered()} players]`"
 
-        event_status_launched = self.check_close_event_change()
+        event_status_launched = await self.check_close_event_change()
         try:
             await interaction.response.send_message(msg)
         finally:
@@ -1560,7 +1560,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         self.old_events.append(self.ongoing_event)
         self.ongoing_event = None
 
-    def check_close_event_change(self) -> Tuple[bool, bool]:
+    async def check_close_event_change(self) -> Tuple[bool, bool]:
         """Returns a bool indicating if the event was gathering but this function then closed the mogi depending on
         the time and number of players or other logic"""
         mogi = self.ongoing_event
@@ -1615,6 +1615,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                                                      f"regardless."
 
                 else:
+                    if not mogi.any_room_cancelled(self.allowed_players_check) and common.SERVER is common.Server.MKW and num_needed_teams > 8:
+                        mogi.gathering = False
+                        self.cur_extension_message = None
+                        await mogi.mogi_channel.send(f"New room requires too many people to start ({num_needed_teams}), starting rooms now.")
+                        return True
                     cur_extension_timestamp = datetime.now(
                         timezone.utc).replace(second=0, microsecond=0)
                     # At this point, we're in the extension time. So if the extension timestamp is in a different
@@ -1688,7 +1693,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         except Exception as e:
             print(traceback.format_exc())
         try:
-            if self.check_close_event_change():
+            if await self.check_close_event_change():
                 await self.launch_mogi()
             await self.check_send_extension_message()
         except Exception as e:
@@ -1905,7 +1910,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             mogi.teams.append(squad)
         msg = f"{players[0].lounge_name} added 12 times."
         await self.queue_or_send(ctx, msg)
-        if self.check_close_event_change():
+        if await self.check_close_event_change():
             await self.launch_mogi()
 
     @commands.command(name="debug_add_many_ratings")
@@ -1930,7 +1935,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 mogi.teams.append(Team([player]))
         msg = f"Players added with the following ratings: {' '.join(['`' + r + '`' for r in ratings])}"
         await self.queue_or_send(ctx, msg)
-        if self.check_close_event_change():
+        if await self.check_close_event_change():
             await self.launch_mogi()
 
     @commands.command(name="debug_add_many_players")
@@ -1962,7 +1967,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             mogi.teams.append(squad)
         msg = f"{players[0].lounge_name} added {num_times} times."
         await self.queue_or_send(ctx, msg)
-        if self.check_close_event_change():
+        if await self.check_close_event_change():
             await self.launch_mogi()
 
     @commands.command(name="debug_start_rooms")
