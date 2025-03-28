@@ -353,7 +353,8 @@ class SquadQueue(commands.Cog):
         try:
             if schedule_channel_id:
                 await self.SCHEDULE_CHANNEL.purge(check=is_queuebot, after=purge_after)
-                if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
+                #if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
+                if self.queues_between_forced_format_queue:
                     await self.autoschedule_forced_format_times()
         except BaseException:
             print("Purging Schedule channel failed", flush=True)
@@ -779,12 +780,14 @@ class SquadQueue(commands.Cog):
 
             current_rotation = ', '.join(self.forced_format_order)
 
-            msg += f"**Current Rotation** - {current_rotation}\n"
+            msg += f"**Current Rotation** - {current_rotation or 'N/A'}\n"
 
             time_between_ff_queues = self.queues_between_forced_format_queue * self.QUEUE_OPEN_TIME
             time_between_ff_queues_hours = time_between_ff_queues.total_seconds() / 3600
 
-            if time_between_ff_queues_hours.is_integer():
+            if not current_rotation:
+                msg+= f"**Current Interval** - N/A\n\n"
+            elif time_between_ff_queues_hours.is_integer():
                 msg += f"**Current Interval** - {int(time_between_ff_queues_hours)} hours\n\n"
             else:
                 time_between_ff_queues_minutes = time_between_ff_queues.total_seconds() / 60
