@@ -56,6 +56,11 @@ def mk8dx_players_allowed(players: List[Player], threshold: int) -> bool:
     return basic_threshold_players_allowed(players, threshold)
 
 
+def mkworld_players_allowed(players: List[Player], threshold: int) -> bool:
+    """Returns true if the given list of players would be allowed to play together"""
+    return basic_threshold_players_allowed(players, threshold)
+
+
 @app_commands.guild_only()
 class SettingsGroup(app_commands.Group):
     def __init__(self, squad_queue: SquadQueue, *args, **kwargs):
@@ -205,6 +210,8 @@ class SquadQueue(commands.Cog):
 
         self.URL = bot.config["url"]
 
+        self.PLAYERS_PER_ROOM: int = self.bot.config["PLAYERS_PER_ROOM"] or 12
+
         self.PLACEMENT_PLAYER_MMR = self.bot.config["PLACEMENT_PLAYER_MMR"]
 
         self.ROOM_JOIN_PENALTY_TIME = self.bot.config["ROOM_JOIN_PENALTY_TIME"]
@@ -353,7 +360,7 @@ class SquadQueue(commands.Cog):
         try:
             if schedule_channel_id:
                 await self.SCHEDULE_CHANNEL.purge(check=is_queuebot, after=purge_after)
-                #if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
+                # if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
                 if self.queues_between_forced_format_queue:
                     await self.autoschedule_forced_format_times()
         except BaseException:
@@ -421,6 +428,8 @@ class SquadQueue(commands.Cog):
             return mkw_players_allowed(players, self.room_mmr_threshold)
         elif common.SERVER is common.Server.MK8DX:
             return mk8dx_players_allowed(players, self.room_mmr_threshold)
+        elif common.SERVER is common.Server.MKWorld:
+            return mkworld_players_allowed(players, self.room_mmr_threshold)
 
     # goes thru the msg queue for each channel and combines them
     # into as few messsages as possible, then sends them
@@ -504,6 +513,9 @@ class SquadQueue(commands.Cog):
             elif common.SERVER is common.Server.MKW:
                 # member = await self.bot.fetch_user(82862780591378432)
                 pass
+            if common.SERVER is common.Server.MKWorld:
+                # is actually a user and not a member
+                member = await self.bot.fetch_user(318637887597969419)
         mogi = self.get_mogi(interaction)
         if mogi is None or not mogi.started or not mogi.gathering:
             await interaction.response.send_message("Queue has not started yet.")
@@ -718,6 +730,13 @@ class SquadQueue(commands.Cog):
                     msg += f"`{i}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} MMR){late_str}\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
+            elif common.SERVER is common.Server.MKWorld:
+                all_confirmed_players.sort(reverse=True)
+                for i, player in enumerate(all_confirmed_players, 1):
+                    late_str = " `*`" if player in late_players else ""
+                    msg += f"`{i}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} MMR){late_str}\n"
+                    if i % mogi.players_per_room == 0:
+                        msg += "ㅤ\n"
             msg += f"\n**Last Updated:** {discord.utils.format_dt(datetime.now(timezone.utc), style='R')}"
             message = msg.split("\n")
 
@@ -765,6 +784,7 @@ class SquadQueue(commands.Cog):
         if self.SCHEDULE_CHANNEL:
             msg = ""
 
+            # maybe for mkworld if not 1 hour blocks for mogis
             if common.SERVER is common.Server.MKW:
                 msg += "**Daily Queue Times:**\n\n"
 
@@ -786,7 +806,7 @@ class SquadQueue(commands.Cog):
             time_between_ff_queues_hours = time_between_ff_queues.total_seconds() / 3600
 
             if not current_rotation:
-                msg+= f"**Current Interval** - N/A\n\n"
+                msg += f"**Current Interval** - N/A\n\n"
             elif time_between_ff_queues_hours.is_integer():
                 msg += f"**Current Interval** - {int(time_between_ff_queues_hours)} hours\n\n"
             else:
@@ -865,9 +885,9 @@ class SquadQueue(commands.Cog):
     @app_commands.command(name="scoreboard")
     @app_commands.guild_only()
     async def scoreboard(self, interaction: discord.Interaction):
-        """Displays the scoreboard of the room. Only works in thread channels for SQ rooms."""
-        if common.SERVER is not common.Server.MK8DX:
-            await interaction.response.send_message(f"Command is only usable for MK8DX.", ephemeral=True)
+        """Displays the scoreboard of the room. Only works in thread channels for queue rooms."""
+        if common.SERVER is common.Server.MKW:
+            await interaction.response.send_message(f"Command is only usable for MK8DX and MKWorld.", ephemeral=True)
             return
 
         if not isinstance(interaction.channel, discord.Thread):
@@ -1333,7 +1353,6 @@ class SquadQueue(commands.Cog):
 
         await interaction.response.send_message("Cleared list of Squad Queue Times.")
 
-    
     @staticmethod
     async def end_voting(mogi: Mogi):
         """Ends voting in all rooms with ongoing votes."""
@@ -1368,6 +1387,8 @@ class SquadQueue(commands.Cog):
                     if common.SERVER is common.Server.MKW:
                         msg += f"{room.view.room_start_msg_link}\n"
                     elif common.SERVER is common.Server.MK8DX:
+                        msg += f"{room.channel.jump_url}\n"
+                    elif common.SERVER is common.Server.MKWorld:
                         msg += f"{room.channel.jump_url}\n"
                     msg += room.view.teams_text
                     msg += "ㅤ"
@@ -1480,6 +1501,7 @@ class SquadQueue(commands.Cog):
                     potential_host_str += f"No one in the room queued as host. Decide a host amongst yourselves."
                 room_msg += f"\n{potential_host_str}\n"
 
+                # make it work for variable amount of people in room, mkworld
                 if not mogi.format:
                     vote_formats = "FFA, 2v2, 3v3, 4v4" if common.SERVER is common.Server.MK8DX else "FFA, 2v2, 3v3, 4v4, 6v6"
                     room_msg += f"Vote for format {vote_formats}.\n"
@@ -1901,6 +1923,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(82862780591378432)
+            elif common.SERVER is common.Server.MKWorld:
+                member = await self.bot.fetch_user(318637887597969419)
         check_players = [member]
         check_players.extend(members)
         players = self.ratings.get_rating(check_players)
@@ -1931,6 +1955,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
                 member = await self.GUILD.fetch_member(1114699357179088917)
+            elif common.SERVER is common.Server.MKWorld:
+                member = await self.bot.fetch_user(318637887597969419)
         for i, rating in enumerate(ratings, 1):
             if common.is_int(rating):
                 player = Player(member, f"{member.name} {i}", int(
@@ -1958,6 +1984,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(314861232693706752)
+            elif common.SERVER is common.Server.MKWorld:
+                member = await self.bot.fetch_user(318637887597969419)
         check_players = [member]
         check_players.extend(members)
         players = self.ratings.get_rating(check_players)

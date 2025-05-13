@@ -39,6 +39,8 @@ class Ratings:
             rating_func = self._pull_mk8dx_ratings
         elif common.SERVER is common.Server.MKW:
             rating_func = self._pull_mkw_ratings
+        elif common.SERVER is common.Server.MKWorld:
+            rating_func = self._pull_mkworld_ratings
         else:
             raise Exception("Unreachable code.")
 
@@ -63,6 +65,10 @@ class Ratings:
     async def _pull_mkw_ratings(self) -> bool:
         url = f"""{common.CONFIG["url"]}/api/ladderplayer.php?ladder_type={common.CONFIG["track_type"]}&all&fields=discord_user_id,current_mmr,player_name"""
         return await Ratings._pull_ratings(url, self._parse_mkw_ratings, self._validate_mkw_response)
+
+    async def _pull_mkworld_ratings(self) -> bool:
+        url = f"""{common.CONFIG["url"]}/api/player/list"""
+        return await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mk8dx_response)
 
     @staticmethod
     async def _pull_ratings(url, parser, validator) -> bool:

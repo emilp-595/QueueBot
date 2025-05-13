@@ -2,7 +2,7 @@
     "token": "",
     "is_production": true,
     "lounge": "MKW",
-    "lounge_description": "Valid options are MKW or MK8DX",
+    "lounge_description": "Valid options are MKW, MKWorld, or MK8DX",
     "guild_id": 387347467332485122,
     "queue_join_channel": 1215174119767932979,
     "queue_sub_channel": 1215174160234315806,

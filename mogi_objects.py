@@ -219,6 +219,8 @@ class Mogi:
             return self._mk8dx_generate_final_list()
         elif common.SERVER is common.Server.MKW:
             return self._mkw_generate_final_list(valid_players_check)
+        elif common.SERVER is common.Server.MKWorld:
+            return self._mk8dx_generate_final_list()
         else:
             raise ValueError(f"Unknown server in config: {common.Server}")
 
@@ -319,14 +321,16 @@ class Room:
     def tier(self) -> str:
         if common.SERVER is common.Server.MK8DX:
             return get_tier_mk8dx(round(self.avg_mmr) - 500)
-        if common.SERVER is common.Server.MKW:
+        elif common.SERVER is common.Server.MKW:
             return str(get_tier_mkw(self.avg_mmr, self.players))
+        elif common.SERVER is common.Server.MKWorld:
+            return get_tier_mk8dx(round(self.avg_mmr) - 500)
 
     @property
     def tier_collection(self) -> str:
         if common.SERVER is common.Server.MK8DX:
             return self.tier
-        if common.SERVER is common.Server.MKW:
+        elif common.SERVER is common.Server.MKW:
             tier_number = self.tier
             if not common.is_int(tier_number):
                 return "HT"
@@ -336,6 +340,8 @@ class Room:
             if tier_number >= 5:
                 return "HT"
             return "MT"
+        elif common.SERVER is common.Server.MKWorld:
+            return self.tier
 
     @property
     def mmr_high(self) -> int:
@@ -615,6 +621,9 @@ class VoteView(View):
         elif common.SERVER is common.Server.MK8DX:
             self.mogi.making_rooms_run_time = self.mogi.start_time + \
                 timedelta(minutes=5)
+        elif common.SERVER is common.Server.MKWorld:
+            self.mogi.making_rooms_run_time = self.mogi.start_time + \
+                timedelta(minutes=5)
         if common.SERVER is common.Server.MK8DX and vote_str == "6v6":
             pop_to_end = [8, 7, 4, 3, 0]
             for i in pop_to_end:
@@ -640,7 +649,7 @@ class VoteView(View):
             msg += f"Winner: {vote_str}\n\n"
 
         self.header_text = ""
-        tier_text = "Tier " if common.SERVER is common.Server.MK8DX else "T"
+        tier_text = "Tier " if common.SERVER is common.Server.MK8DX or common.SERVER is common.Server.MKWorld else "T"
         self.header_text += f"**Room {room.room_num} MMR: {room.avg_mmr} - {tier_text}{room.tier}** "
         msg += self.header_text + "\n"
 
@@ -683,6 +692,9 @@ class VoteView(View):
 4. **{captain_2.lounge_name}** picks 2 players
 5. **{captain_1.lounge_name}** picks 2 players
 6. **{captain_2.lounge_name}** picks 1 players\n"""
+        elif common.SERVER is common.Server.MKWorld:
+            msg += f"\nTable: `/scoreboard`\n"
+            msg += f"RandomBot Scoreboard: `/scoreboard {teams_per_room} {', '.join(scoreboard_text)}`\n"
 
         penalty_time = self.mogi.making_rooms_run_time + \
             timedelta(minutes=self.penalty_time)
@@ -691,18 +703,23 @@ class VoteView(View):
         if potential_host_str == "":
             if common.SERVER is common.Server.MK8DX:
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
-            elif common.SERVER.MKW:
+            elif common.SERVER is common.Server.MKW:
                 msg += f"\nPenalty is {self.penalty_time} minutes after the room opens. Good luck!"
+            elif common.SERVER is common.Server.MKWorld:
+                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
         else:
             if common.SERVER is common.Server.MK8DX:
                 msg += f"\n{potential_host_str}"
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
-            else:
+            elif common.SERVER is common.Server.MKW:
                 cur_time = datetime.now(timezone.utc)
                 mkw_room_open_time = cur_time + timedelta(minutes=1)
                 pen_time = mkw_room_open_time + \
                     timedelta(minutes=self.penalty_time)
                 msg += f"\nRoom open at :{mkw_room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
+            elif common.SERVER is common.Server.MK8DX:
+                msg += f"\n{potential_host_str}"
+                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
         room.teams = teams
 
@@ -856,17 +873,18 @@ def get_tier_mkw(mmr: int, players: List[Player]):
         return '1'
     else:
         return '0'
-	#for tier in tier_info:
-        #if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
-                #tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
-            #return tier["ladder_order"]
+        # for tier in tier_info:
+        # if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
+        # tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
+        # return tier["ladder_order"]
 
-		
+
 def player_threshold_check(mmr: int, players: List[Player]):
-	for player in players:
-		if player.mmr < mmr:
-			return False
-	return True
+    for player in players:
+        if player.mmr < mmr:
+            return False
+    return True
+
 
 def get_tier_mk8dx(mmr: int):
     if mmr > 14000:

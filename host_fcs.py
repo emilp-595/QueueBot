@@ -17,6 +17,10 @@ async def _get_mk8dx_hosts(discord_ids: Iterable[str]) -> Dict[str, str]:
     return {}
 
 
+async def _get_mkworld_hosts(discord_ids: Iterable[str]) -> Dict[str, str]:
+    return {}
+
+
 async def _get_mkw_hosts(discord_ids: Iterable[str]) -> Dict[str, str]:
     request_url = MKW_HOST_API_URL + ",".join(discord_ids)
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
@@ -40,5 +44,7 @@ async def get_hosts(discord_ids: Iterable[str]) -> Dict[str, str]:
         return await _get_mkw_hosts(discord_ids)
     elif common.SERVER is common.Server.MK8DX:
         return await _get_mk8dx_hosts(discord_ids)
+    elif common.SERVER is common.Server.MKWorld:
+        return await _get_mkworld_hosts(discord_ids)
     else:
         raise ValueError("Bad config settings for server.")
