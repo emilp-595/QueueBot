@@ -4,6 +4,7 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
+from discord.app_commands import Range
 from datetime import datetime, timezone, timedelta
 import pytz
 import time
@@ -210,7 +211,10 @@ class SquadQueue(commands.Cog):
 
         self.URL = bot.config["url"]
 
-        self.PLAYERS_PER_ROOM: int = self.bot.config["PLAYERS_PER_ROOM"] or 12
+        self.PLAYERS_PER_ROOM: int = self.bot.config.get(
+            "PLAYERS_PER_ROOM", 12)
+
+        self.ALLOWED_VOTE_BUTTONS = []
 
         self.PLACEMENT_PLAYER_MMR = self.bot.config["PLACEMENT_PLAYER_MMR"]
 
@@ -341,6 +345,8 @@ class SquadQueue(commands.Cog):
         if schedule_channel_id:
             self.SCHEDULE_CHANNEL = self.bot.get_channel(
                 schedule_channel_id)
+
+        self.generate_vote_buttons()
 
         def is_queuebot(m: discord.Message):
             return m.author.id == self.bot.user.id
@@ -1894,6 +1900,107 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         mogi_time_relative = discord.utils.format_dt(
             mogi.start_time, style="R")
         return f"`#{mogi.sq_id}` **{mogi.max_player_per_team}v{mogi.max_player_per_team}:** {mogi_time} - {mogi_time_relative}"
+
+    async def print_vote_button_info(self, interaction):
+        str = ""
+
+        str += f"The new amount of players per room is {self.PLAYERS_PER_ROOM}\n"
+        str += f"The new vote buttons for this amount of players per room are "
+
+        format_names = [btn["format_name"]
+                        for btn in self.ALLOWED_VOTE_BUTTONS]
+        str += ", ".join(format_names)
+
+        await interaction.response.send_message(str)
+
+    @app_commands.command(name="update_players_per_room")
+    @app_commands.guild_only()
+    async def update_players_per_room(self, interaction: discord.Interaction, new_amount: Range[int, 2]):
+        """Sets the new amount of player per room for queue.  Staff use only."""
+        self.PLAYERS_PER_ROOM = new_amount
+        self.generate_vote_buttons()
+
+        await self.print_vote_button_info(interaction)
+
+    def generate_vote_buttons(self):
+        new_vote_button_list = []
+        iterator = iter(range(1, self.PLAYERS_PER_ROOM))
+
+        for i in iterator:
+            if self.PLAYERS_PER_ROOM % i == 0:
+                format_name = "FFA" if i == 1 else f"{i}v{i}"
+                new_vote_button_list.append({
+                    "num_players_per_team": i,
+                    "format_name": format_name
+                })
+
+        self.ALLOWED_VOTE_BUTTONS = new_vote_button_list
+
+    async def add_vote_button_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        total = self.PLAYERS_PER_ROOM
+
+        existing_formats = {btn["format_name"]
+                            for btn in self.ALLOWED_VOTE_BUTTONS}
+
+        new_formats = []
+        for i in range(1, total):
+            if total % i != 0:
+                continue
+            fmt = "FFA" if i == 1 else f"{i}v{i}"
+            if fmt not in existing_formats and current in fmt:
+                new_formats.append(fmt)
+
+        return [
+            app_commands.Choice(name=fmt, value=fmt)
+            for fmt in new_formats[:25]
+        ]
+
+    @app_commands.command(name="add_vote_button")
+    @app_commands.autocomplete(vote_string=add_vote_button_autocomplete)
+    @app_commands.guild_only()
+    async def add_vote_button(self, interaction: discord.Interaction, vote_string: str):
+        """Adds a vote button from list of possible buttons.  Staff use only."""
+        if vote_string == "FFA":
+            num_players_per_team = 1
+        else:
+            try:
+                num_players_per_team = int(vote_string.split("v")[0])
+            except (ValueError, IndexError):
+                await interaction.response.send_message("Invalid format name.", ephemeral=True)
+                return
+
+        self.ALLOWED_VOTE_BUTTONS.append({
+            "num_players_per_team": num_players_per_team,
+            "format_name": vote_string
+        })
+
+        self.ALLOWED_VOTE_BUTTONS.sort(key=lambda x: x["num_players_per_team"])
+
+        await self.print_vote_button_info(interaction)
+
+    async def remove_vote_button_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        choices = [
+            app_commands.Choice(
+                name=btn["format_name"], value=btn["format_name"])
+            for btn in self.ALLOWED_VOTE_BUTTONS
+            if current in btn["format_name"]
+        ]
+        return choices[:25]
+
+    @app_commands.command(name="remove_vote_button")
+    @app_commands.autocomplete(vote_string=remove_vote_button_autocomplete)
+    @app_commands.guild_only()
+    async def remove_vote_button(self, interaction: discord.Interaction, vote_string: str):
+        """Removes a vote button from list of possible buttons.  Staff use only."""
+        if len(self.ALLOWED_VOTE_BUTTONS) <= 1:
+            await interaction.response.send_message("You cannnot remove last possible button.")
+            return
+
+        self.ALLOWED_VOTE_BUTTONS = [
+            btn for btn in self.ALLOWED_VOTE_BUTTONS if btn["format_name"] != vote_string
+        ]
+
+        await self.print_vote_button_info(interaction)
 
     @commands.command(name="sync")
     @commands.is_owner()
