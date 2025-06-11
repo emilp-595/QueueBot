@@ -589,7 +589,7 @@ class SquadQueue(commands.Cog):
         squad = Team(players)
         mogi.teams.append(squad)
         host_str = " as a host " if host else " "
-        format_str = f"the {mogi.format} " if mogi.format else ""
+        format_str = f"the __**{mogi.format}**__ " if mogi.format else ""
         msg += f"{players[0].lounge_name} joined {format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
         if common.SERVER is common.Server.MKW:
             if players[0].is_matchmaking_mmr_adjusted:
@@ -1086,6 +1086,54 @@ class SquadQueue(commands.Cog):
         self.old_events = []
         self.LAUNCH_NEW_EVENTS = True
         await interaction.response.send_message("All events have been deleted.  Queue will restart shortly.")
+
+    async def update_current_event_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice[str]]:
+        total = self.PLAYERS_PER_ROOM
+        choices = []
+
+        for i in range(1, total):
+            if total % i != 0:
+                continue
+            fmt = "FFA" if i == 1 else f"{i}v{i}"
+            if current.lower() in fmt.lower():
+                choices.append(app_commands.Choice(name=fmt, value=fmt))
+
+        if "voting".startswith(current.lower()):
+            choices.append(app_commands.Choice(name="Voting", value="Voting"))
+
+        return choices[:25]
+
+    @app_commands.command(name="update_current_event_format")
+    @app_commands.autocomplete(format_string=update_current_event_autocomplete)
+    @app_commands.guild_only()
+    async def update_current_event_format(self, interaction: discord.Interaction, format_string: str):
+        """Update the currently gathering mogi's format. Staff use only."""
+
+        if format_string == "Voting":
+            self.ongoing_event.format = None
+        elif format_string == "FFA":
+            self.ongoing_event.format = "FFA"
+        else:
+            try:
+                num_players_per_team = int(format_string.split("v")[0])
+            except (ValueError, IndexError):
+                await interaction.response.send_message(
+                    f"Invalid format string: `{format_string}`", ephemeral=True
+                )
+                return
+
+            if self.PLAYERS_PER_ROOM % num_players_per_team != 0:
+                await interaction.response.send_message(
+                    f"`{format_string}` is not valid — {num_players_per_team} does not divide evenly into {self.PLAYERS_PER_ROOM}.",
+                    ephemeral=True
+                )
+                return
+
+            self.ongoing_event.format = format_string
+
+        await interaction.response.send_message(f"The currently gathering event's format is now {format_string}")
 
     async def timezone_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         current_upper = current.upper()
@@ -1770,6 +1818,20 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                     self.forced_format_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.forced_format_times[0][0]:
                 last_event = self.forced_format_times.pop(0)
                 format = last_event[1]
+
+                if format != "FFA":
+                    try:
+                        num_players_per_team = int(format.split("v")[0])
+                    except (ValueError, IndexError):
+                        print(
+                            f"Invalid format string encountered: {format}", flush=True)
+                        format = None
+
+                    if self.PLAYERS_PER_ROOM % num_players_per_team != 0:
+                        print(
+                            f"Format {format} is invalid: {num_players_per_team} does not divide evenly into {self.PLAYERS_PER_ROOM}")
+                        format = None
+
                 if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue and len(self.forced_format_times) == 0:
                     await self.autoschedule_forced_format_times()
 
