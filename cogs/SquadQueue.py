@@ -309,6 +309,11 @@ class SquadQueue(commands.Cog):
                     if "PLACEMENT_PLAYER_MMR" in settings_dict:
                         self.PLACEMENT_PLAYER_MMR = settings_dict["PLACEMENT_PLAYER_MMR"]
                         common.CONFIG["PLACEMENT_PLAYER_MMR"] = settings_dict["PLACEMENT_PLAYER_MMR"]
+                    if "PLAYERS_PER_ROOM" in settings_dict:
+                        self.PLAYERS_PER_ROOM = settings_dict["PLAYERS_PER_ROOM"]
+                        common.CONFIG["PLAYERS_PER_ROOM"] = settings_dict["PLAYERS_PER_ROOM"]
+                    if "ALLOWED_VOTE_BUTTONS" in settings_dict and len(settings_dict["ALLOWED_VOTE_BUTTONS"]) > 0:
+                        self.ALLOWED_VOTE_BUTTONS = settings_dict["ALLOWED_VOTE_BUTTONS"]
             except BaseException:
                 print(traceback.format_exc())
 
@@ -321,7 +326,10 @@ class SquadQueue(commands.Cog):
             "MATCHMAKING_BOTTOM_MMR": common.CONFIG["MATCHMAKING_BOTTOM_MMR"],
             "MATCHMAKING_TOP_MMR": common.CONFIG["MATCHMAKING_TOP_MMR"],
             "FIRST_EVENT_TIME": common.CONFIG["FIRST_EVENT_TIME"],
-            "PLACEMENT_PLAYER_MMR": self.PLACEMENT_PLAYER_MMR}
+            "PLACEMENT_PLAYER_MMR": self.PLACEMENT_PLAYER_MMR,
+            "PLAYERS_PER_ROOM": self.PLAYERS_PER_ROOM,
+            "ALLOWED_VOTE_BUTTONS": self.ALLOWED_VOTE_BUTTONS
+        }
         try:
             with open(STAFF_SETTINGS_PKL, 'wb') as f:
                 dill.dump(settings_dict, f)
@@ -346,7 +354,8 @@ class SquadQueue(commands.Cog):
             self.SCHEDULE_CHANNEL = self.bot.get_channel(
                 schedule_channel_id)
 
-        self.generate_vote_buttons()
+        if not self.ALLOWED_VOTE_BUTTONS:
+            self.generate_vote_buttons()
 
         def is_queuebot(m: discord.Message):
             return m.author.id == self.bot.user.id
@@ -912,7 +921,7 @@ class SquadQueue(commands.Cog):
             await interaction.response.send_message(f"The Thread object cannot be found.", ephemeral=True)
             return
 
-        format_ = round(12 / len(room.teams))
+        format_ = round(self.ongoing_event.players_per_room / len(room.teams))
 
         msg = f"!submit {format_} {room.tier}\n"
         for team in room.teams:
@@ -1507,10 +1516,10 @@ class SquadQueue(commands.Cog):
                     potential_host_str += f"No one in the room queued as host. Decide a host amongst yourselves."
                 room_msg += f"\n{potential_host_str}\n"
 
-                # make it work for variable amount of people in room, mkworld
                 if not mogi.format:
-                    vote_formats = "FFA, 2v2, 3v3, 4v4" if common.SERVER is common.Server.MK8DX else "FFA, 2v2, 3v3, 4v4, 6v6"
-                    room_msg += f"Vote for format {vote_formats}.\n"
+                    vote_formats = [b["format_name"] for b in mogi.buttons]
+                    vote_formats_str = ", ".join(vote_formats)
+                    room_msg += f"Vote for format {vote_formats_str}.\n"
 
                 room_msg += f"""
 {player_mentions} {extra_member_mentions}
@@ -1612,9 +1621,10 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 mogi.gathering = False
                 self.cur_extension_message = None
                 return True
-            num_leftover_teams = mogi.count_registered() % (12 // mogi.max_player_per_team)
+            num_leftover_teams = mogi.count_registered() % (
+                mogi.players_per_room // mogi.max_player_per_team)
             num_needed_teams = (
-                12 // mogi.max_player_per_team) - num_leftover_teams
+                mogi.players_per_room // mogi.max_player_per_team) - num_leftover_teams
             if common.SERVER is common.Server.MKW and (
                 force_start_time -
                 timedelta(
@@ -1703,7 +1713,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             self.ongoing_event.started = True
             self.ongoing_event.gathering = True
             await self.unlockdown(self.ongoing_event.mogi_channel)
-            format_str = f"{self.ongoing_event.format} " if self.ongoing_event.format else ""
+            format_str = f"**{self.ongoing_event.format}** " if self.ongoing_event.format else ""
             await self.ongoing_event.mogi_channel.send(
                 f"A queue is gathering for the {format_str}mogi {discord.utils.format_dt(self.ongoing_event.start_time, style='R')} - Type `/c` to join, `/ch` to join and volunteer to host, and `/d` to drop.")
 
@@ -1751,13 +1761,21 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             # it's joining period and during its extension period
             if next_event_start_time < datetime.now(timezone.utc):
                 return
+
             format = None
+            while len(
+                    self.forced_format_times) > 0 and datetime.now(timezone.utc) > self.forced_format_times[0][0]:
+                self.forced_format_times.pop(0)
             if len(
                     self.forced_format_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.forced_format_times[0][0]:
                 last_event = self.forced_format_times.pop(0)
                 format = last_event[1]
                 if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue and len(self.forced_format_times) == 0:
                     await self.autoschedule_forced_format_times()
+
+            while len(
+                    self.sq_times) > 0 and datetime.now(timezone.utc) > self.sq_times[0]:
+                self.sq_times.pop(0)
             if len(
                     self.sq_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.sq_times[0]:
                 self.sq_times.pop(0)
@@ -1773,9 +1791,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 await self.MOGI_CHANNEL.send(
                     "Squad Queue is currently going on!  The queue will remain closed.")
                 return
+
             self.next_event = Mogi(sq_id=1,
                                    max_players_per_team=1,
-                                   players_per_room=12,
+                                   players_per_room=self.PLAYERS_PER_ROOM,
+                                   buttons=self.ALLOWED_VOTE_BUTTONS,
                                    mogi_channel=self.MOGI_CHANNEL,
                                    is_automated=True,
                                    start_time=next_event_start_time,
@@ -1911,6 +1931,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                         for btn in self.ALLOWED_VOTE_BUTTONS]
         str += ", ".join(format_names)
 
+        self.dump_staff_settings()
+
         await interaction.response.send_message(str)
 
     @app_commands.command(name="update_players_per_room")
@@ -1919,6 +1941,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         """Sets the new amount of player per room for queue.  Staff use only."""
         self.PLAYERS_PER_ROOM = new_amount
         self.generate_vote_buttons()
+
+        common.CONFIG["PLAYERS_PER_ROOM"] = new_amount
 
         await self.print_vote_button_info(interaction)
 
@@ -1967,6 +1991,13 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 num_players_per_team = int(vote_string.split("v")[0])
             except (ValueError, IndexError):
                 await interaction.response.send_message("Invalid format name.", ephemeral=True)
+                return
+
+            if self.PLAYERS_PER_ROOM % num_players_per_team != 0:
+                await interaction.response.send_message(
+                    f"Invalid team size. `{num_players_per_team}` must divide evenly into `{self.PLAYERS_PER_ROOM}`.",
+                    ephemeral=True
+                )
                 return
 
         self.ALLOWED_VOTE_BUTTONS.append({
@@ -2035,14 +2066,22 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         check_players = [member]
         check_players.extend(members)
         players = self.ratings.get_rating(check_players)
-        for i in range(0, 12):
-            player = Player(players[0].member,
-                            f"{players[0].lounge_name}{i + 1}",
-                            players[0].mmr + (10 * i))
+        player_member = member
+        player_name = member.display_name
+        player_mmr = 5000
+        if len(players) > 0 and players[0]:
+            player_member = players[0].member
+            player_name = players[0].lounge_name
+            player_mmr = players[0].mmr
+
+        for i in range(0, self.PLAYERS_PER_ROOM):
+            player = Player(player_member,
+                            f"{player_name}{i + 1}",
+                            player_mmr + (10 * i))
             player.confirmed = True
             squad = Team([player])
             mogi.teams.append(squad)
-        msg = f"{players[0].lounge_name} added 12 times."
+        msg = f"{player_name} added {self.PLAYERS_PER_ROOM} times."
         await self.queue_or_send(ctx, msg)
         if await self.check_close_event_change():
             await self.launch_mogi()

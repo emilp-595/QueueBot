@@ -171,6 +171,9 @@ class OneRoomAlgorithmTests(unittest.TestCase):
         elif common.SERVER is common.Server.MK8DX:
             cls.threshold_function = lambda players: SquadQueue.mk8dx_players_allowed(
                 players, cls.threshold)
+        elif common.SERVER is common.Server.MKWorld:
+            cls.threshold_function = lambda players: SquadQueue.mkworld_players_allowed(
+                players, cls.threshold)
         else:
             raise Exception(
                 "Lounge parameter in config is invalid, unit tests will fail.")

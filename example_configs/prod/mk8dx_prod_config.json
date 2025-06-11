@@ -32,7 +32,7 @@
     "sec_between_queue_msgs": 2,
     "username": "username",
     "password": "password",
-    "url": "https://www.mk8dx-lounge.com",
+    "url": "https://lounge.mkcentral.com/",
     "track_type": "rt",
     "FIRST_EVENT_TIME": 0,
     "FIRST_EVENT_TIME_DESCRIPTION": "First event time is the number of minutes from 0:00 UTC that the bot would run the first event of the day. As an example, if this were set to 5, and the QUEUE_OPEN_TIME were set to 70, and the bot were to reboot at 2:00 UTC, the next event would immediately start and create rooms at 2:25 UTC.",

@@ -52,6 +52,7 @@ class Mogi:
             sq_id: int,
             max_players_per_team: int,
             players_per_room: int,
+            buttons,
             mogi_channel: discord.TextChannel,
             is_automated=False,
             start_time=None,
@@ -65,6 +66,7 @@ class Mogi:
         self.sq_id = sq_id
         self.max_player_per_team = max_players_per_team
         self.players_per_room = players_per_room
+        self.buttons = buttons
         self.mogi_channel = mogi_channel
         self.teams: List[Team] = []
         self.rooms: List[Room] = []
@@ -576,12 +578,7 @@ class VoteView(View):
         self.teams_text = ""
         self.found_winner = False
         self.penalty_time = penalty_time
-        self.votes = {"FFA": [],
-                      "2v2": [],
-                      "3v3": [],
-                      "4v4": [],
-                      "6v6": []
-                      }
+        self.votes = {button["format_name"]: [] for button in mogi.buttons}
 
     async def create_message(self):
         if self.mogi.format:
@@ -590,24 +587,14 @@ class VoteView(View):
                 view=self
             )
 
-            if self.mogi.format == "FFA":
-                await self.make_teams(1, "FFA")
-            elif self.mogi.format == "2v2":
-                await self.make_teams(2, "2v2")
-            elif self.mogi.format == "3v3":
-                await self.make_teams(3, "3v3")
-            elif self.mogi.format == "4v4":
-                await self.make_teams(4, "4v4")
-            elif self.mogi.format == "6v6":
-                await self.make_teams(6, "6v6")
-        else:
-            self.add_button("FFA", self.general_vote_callback)
-            self.add_button("2v2", self.general_vote_callback)
-            self.add_button("3v3", self.general_vote_callback)
-            self.add_button("4v4", self.general_vote_callback)
+            players_per_team = 1 if self.mogi.format == "FFA" else int(
+                self.mogi.format.split('v')[0])
 
-            if common.SERVER is common.Server.MKW:
-                self.add_button("6v6", self.general_vote_callback)
+            await self.make_teams(players_per_team, self.mogi.format)
+        else:
+            for button in self.mogi.buttons:
+                format_name = button["format_name"]
+                self.add_button(format_name, self.general_vote_callback)
 
             self.message = await self.room_channel.send(
                 view=self
@@ -637,15 +624,11 @@ class VoteView(View):
         msg = "ㅤ\n"
 
         if not self.mogi.format:
-            msg = f"""**Poll Ended!**
+            msg = "**Poll Ended!**\n\n"
 
-1) FFA - {len(self.votes['FFA'])}
-2) 2v2 - {len(self.votes['2v2'])}
-3) 3v3 - {len(self.votes['3v3'])}
-4) 4v4 - {len(self.votes['4v4'])}
-"""
-            if common.SERVER is common.Server.MKW:
-                msg += f"5) 6v6 - {len(self.votes['6v6'])}\n"
+            for i, (format_name, votes) in enumerate(self.votes.items(), start=1):
+                msg += f"{i}) {format_name} - {len(votes)}\n"
+
             msg += f"Winner: {vote_str}\n\n"
 
         self.header_text = ""
@@ -654,7 +637,7 @@ class VoteView(View):
         msg += self.header_text + "\n"
 
         teams = []
-        teams_per_room = 12 // players_per_team
+        teams_per_room = self.mogi.players_per_room // players_per_team
         for j in range(teams_per_room):
             players = sorted(self.players[j * players_per_team:(j + 1) * players_per_team],
                              key=lambda player: player.mmr, reverse=True)
@@ -717,13 +700,12 @@ class VoteView(View):
                 pen_time = mkw_room_open_time + \
                     timedelta(minutes=self.penalty_time)
                 msg += f"\nRoom open at :{mkw_room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
-            elif common.SERVER is common.Server.MK8DX:
+            elif common.SERVER is common.Server.MKWorld:
                 msg += f"\n{potential_host_str}"
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
         room.teams = teams
 
-        self.found_winner = True
         try:
             await self.room_channel.send(msg)
             if common.CONFIG["USE_THREADS"]:
@@ -737,19 +719,14 @@ class VoteView(View):
 
     async def find_winner(self):
         if not self.found_winner:
+            self.found_winner = True
             most_votes = len(max(self.votes.values(), key=len))
             winners = []
-            if len(self.votes["FFA"]) == most_votes:
-                winners.append((1, "FFA"))
-            if len(self.votes["2v2"]) == most_votes:
-                winners.append((2, "2v2"))
-            if len(self.votes["3v3"]) == most_votes:
-                winners.append((3, "3v3"))
-            if len(self.votes["4v4"]) == most_votes:
-                winners.append((4, "4v4"))
-            if common.SERVER is common.Server.MKW and len(
-                    self.votes["6v6"]) == most_votes:
-                winners.append((6, "6v6"))
+            for format_name, votes in self.votes.items():
+                if len(votes) == most_votes:
+                    players_per_team = 1 if format_name == "FFA" else int(
+                        format_name.split('v')[0])
+                    winners.append((players_per_team, format_name))
 
             winner = random.choice(winners)
 
@@ -776,9 +753,8 @@ class VoteView(View):
                 await interaction.response.send_message("You are not a player in this event.", ephemeral=True)
                 return
             vote = interaction.data['custom_id']
-            players_per_team = 1
-            if vote != "FFA":
-                players_per_team = int(vote[0])
+            players_per_team = 1 if vote == "FFA" else int(
+                vote.split('v')[0])
             original_vote = None
             for vote_option, voter_ids in self.votes.items():
                 if interaction.user.id in voter_ids:
@@ -786,7 +762,7 @@ class VoteView(View):
                     voter_ids.remove(interaction.user.id)
             if original_vote != vote:  # They changed their vote or are a new voter
                 self.votes[vote].append(interaction.user.id)
-            if len(self.votes[vote]) == 6:
+            if len(self.votes[vote]) >= self.mogi.players_per_room / 2:
                 self.found_winner = True  # This fixes a race condition
                 await self.make_teams(players_per_team, vote)
             for curr_button in self.children:
