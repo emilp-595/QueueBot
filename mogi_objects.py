@@ -326,7 +326,7 @@ class Room:
         elif common.SERVER is common.Server.MKW:
             return str(get_tier_mkw(self.avg_mmr, self.players))
         elif common.SERVER is common.Server.MKWorld:
-            return get_tier_mk8dx(round(self.avg_mmr) - 500)
+            return get_tier_mkworld(round(self.avg_mmr) - 500)
 
     @property
     def tier_collection(self) -> str:
@@ -849,10 +849,6 @@ def get_tier_mkw(mmr: int, players: List[Player]):
         return '1'
     else:
         return '0'
-        # for tier in tier_info:
-        # if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
-        # tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
-        # return tier["ladder_order"]
 
 
 def player_threshold_check(mmr: int, players: List[Player]):
@@ -893,3 +889,7 @@ def get_tier_mk8dx(mmr: int):
         return 'FG'
     else:
         return 'G'
+
+
+def get_tier_mkworld(mmr: int):
+    return 'Q'
