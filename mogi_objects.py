@@ -52,6 +52,7 @@ class Mogi:
             sq_id: int,
             max_players_per_team: int,
             players_per_room: int,
+            buttons,
             mogi_channel: discord.TextChannel,
             is_automated=False,
             start_time=None,
@@ -65,6 +66,7 @@ class Mogi:
         self.sq_id = sq_id
         self.max_player_per_team = max_players_per_team
         self.players_per_room = players_per_room
+        self.buttons = buttons
         self.mogi_channel = mogi_channel
         self.teams: List[Team] = []
         self.rooms: List[Room] = []
@@ -219,6 +221,8 @@ class Mogi:
             return self._mk8dx_generate_final_list()
         elif common.SERVER is common.Server.MKW:
             return self._mkw_generate_final_list(valid_players_check)
+        elif common.SERVER is common.Server.MKWorld:
+            return self._mk8dx_generate_final_list()
         else:
             raise ValueError(f"Unknown server in config: {common.Server}")
 
@@ -319,14 +323,16 @@ class Room:
     def tier(self) -> str:
         if common.SERVER is common.Server.MK8DX:
             return get_tier_mk8dx(round(self.avg_mmr) - 500)
-        if common.SERVER is common.Server.MKW:
+        elif common.SERVER is common.Server.MKW:
             return str(get_tier_mkw(self.avg_mmr, self.players))
+        elif common.SERVER is common.Server.MKWorld:
+            return get_tier_mkworld(round(self.avg_mmr) - 500)
 
     @property
     def tier_collection(self) -> str:
         if common.SERVER is common.Server.MK8DX:
             return self.tier
-        if common.SERVER is common.Server.MKW:
+        elif common.SERVER is common.Server.MKW:
             tier_number = self.tier
             if not common.is_int(tier_number):
                 return "HT"
@@ -336,6 +342,8 @@ class Room:
             if tier_number >= 5:
                 return "HT"
             return "MT"
+        elif common.SERVER is common.Server.MKWorld:
+            return self.tier
 
     @property
     def mmr_high(self) -> int:
@@ -570,12 +578,7 @@ class VoteView(View):
         self.teams_text = ""
         self.found_winner = False
         self.penalty_time = penalty_time
-        self.votes = {"FFA": [],
-                      "2v2": [],
-                      "3v3": [],
-                      "4v4": [],
-                      "6v6": []
-                      }
+        self.votes = {button["format_name"]: [] for button in mogi.buttons}
 
     async def create_message(self):
         if self.mogi.format:
@@ -584,24 +587,14 @@ class VoteView(View):
                 view=self
             )
 
-            if self.mogi.format == "FFA":
-                await self.make_teams(1, "FFA")
-            elif self.mogi.format == "2v2":
-                await self.make_teams(2, "2v2")
-            elif self.mogi.format == "3v3":
-                await self.make_teams(3, "3v3")
-            elif self.mogi.format == "4v4":
-                await self.make_teams(4, "4v4")
-            elif self.mogi.format == "6v6":
-                await self.make_teams(6, "6v6")
-        else:
-            self.add_button("FFA", self.general_vote_callback)
-            self.add_button("2v2", self.general_vote_callback)
-            self.add_button("3v3", self.general_vote_callback)
-            self.add_button("4v4", self.general_vote_callback)
+            players_per_team = 1 if self.mogi.format == "FFA" else int(
+                self.mogi.format.split('v')[0])
 
-            if common.SERVER is common.Server.MKW:
-                self.add_button("6v6", self.general_vote_callback)
+            await self.make_teams(players_per_team, self.mogi.format)
+        else:
+            for button in self.mogi.buttons:
+                format_name = button["format_name"]
+                self.add_button(format_name, self.general_vote_callback)
 
             self.message = await self.room_channel.send(
                 view=self
@@ -613,6 +606,9 @@ class VoteView(View):
             if vote_str == "6v6":
                 players_per_team = 1
         elif common.SERVER is common.Server.MK8DX:
+            self.mogi.making_rooms_run_time = self.mogi.start_time + \
+                timedelta(minutes=5)
+        elif common.SERVER is common.Server.MKWorld:
             self.mogi.making_rooms_run_time = self.mogi.start_time + \
                 timedelta(minutes=5)
         if common.SERVER is common.Server.MK8DX and vote_str == "6v6":
@@ -628,24 +624,20 @@ class VoteView(View):
         msg = "ㅤ\n"
 
         if not self.mogi.format:
-            msg = f"""**Poll Ended!**
+            msg = "**Poll Ended!**\n\n"
 
-1) FFA - {len(self.votes['FFA'])}
-2) 2v2 - {len(self.votes['2v2'])}
-3) 3v3 - {len(self.votes['3v3'])}
-4) 4v4 - {len(self.votes['4v4'])}
-"""
-            if common.SERVER is common.Server.MKW:
-                msg += f"5) 6v6 - {len(self.votes['6v6'])}\n"
+            for i, (format_name, votes) in enumerate(self.votes.items(), start=1):
+                msg += f"{i}) {format_name} - {len(votes)}\n"
+
             msg += f"Winner: {vote_str}\n\n"
 
         self.header_text = ""
-        tier_text = "Tier " if common.SERVER is common.Server.MK8DX else "T"
+        tier_text = "Tier " if common.SERVER is common.Server.MK8DX or common.SERVER is common.Server.MKWorld else "T"
         self.header_text += f"**Room {room.room_num} MMR: {room.avg_mmr} - {tier_text}{room.tier}** "
         msg += self.header_text + "\n"
 
         teams = []
-        teams_per_room = 12 // players_per_team
+        teams_per_room = self.mogi.players_per_room // players_per_team
         for j in range(teams_per_room):
             players = sorted(self.players[j * players_per_team:(j + 1) * players_per_team],
                              key=lambda player: player.mmr, reverse=True)
@@ -683,6 +675,9 @@ class VoteView(View):
 4. **{captain_2.lounge_name}** picks 2 players
 5. **{captain_1.lounge_name}** picks 2 players
 6. **{captain_2.lounge_name}** picks 1 players\n"""
+        elif common.SERVER is common.Server.MKWorld:
+            msg += f"\nTable: `/scoreboard`\n"
+            msg += f"RandomBot Scoreboard: `/scoreboard {teams_per_room} {', '.join(scoreboard_text)}`\n"
 
         penalty_time = self.mogi.making_rooms_run_time + \
             timedelta(minutes=self.penalty_time)
@@ -691,22 +686,26 @@ class VoteView(View):
         if potential_host_str == "":
             if common.SERVER is common.Server.MK8DX:
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
-            elif common.SERVER.MKW:
+            elif common.SERVER is common.Server.MKW:
                 msg += f"\nPenalty is {self.penalty_time} minutes after the room opens. Good luck!"
+            elif common.SERVER is common.Server.MKWorld:
+                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
         else:
             if common.SERVER is common.Server.MK8DX:
                 msg += f"\n{potential_host_str}"
                 msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
-            else:
+            elif common.SERVER is common.Server.MKW:
                 cur_time = datetime.now(timezone.utc)
                 mkw_room_open_time = cur_time + timedelta(minutes=1)
                 pen_time = mkw_room_open_time + \
                     timedelta(minutes=self.penalty_time)
                 msg += f"\nRoom open at :{mkw_room_open_time.minute:02}, penalty at :{pen_time.minute:02}. Good luck!"
+            elif common.SERVER is common.Server.MKWorld:
+                msg += f"\n{potential_host_str}"
+                msg += f"\nRoom open at :{room_open_time.minute:02}, penalty at :{penalty_time.minute:02}. Good luck!"
 
         room.teams = teams
 
-        self.found_winner = True
         try:
             await self.room_channel.send(msg)
             if common.CONFIG["USE_THREADS"]:
@@ -720,19 +719,14 @@ class VoteView(View):
 
     async def find_winner(self):
         if not self.found_winner:
+            self.found_winner = True
             most_votes = len(max(self.votes.values(), key=len))
             winners = []
-            if len(self.votes["FFA"]) == most_votes:
-                winners.append((1, "FFA"))
-            if len(self.votes["2v2"]) == most_votes:
-                winners.append((2, "2v2"))
-            if len(self.votes["3v3"]) == most_votes:
-                winners.append((3, "3v3"))
-            if len(self.votes["4v4"]) == most_votes:
-                winners.append((4, "4v4"))
-            if common.SERVER is common.Server.MKW and len(
-                    self.votes["6v6"]) == most_votes:
-                winners.append((6, "6v6"))
+            for format_name, votes in self.votes.items():
+                if len(votes) == most_votes:
+                    players_per_team = 1 if format_name == "FFA" else int(
+                        format_name.split('v')[0])
+                    winners.append((players_per_team, format_name))
 
             winner = random.choice(winners)
 
@@ -759,9 +753,8 @@ class VoteView(View):
                 await interaction.response.send_message("You are not a player in this event.", ephemeral=True)
                 return
             vote = interaction.data['custom_id']
-            players_per_team = 1
-            if vote != "FFA":
-                players_per_team = int(vote[0])
+            players_per_team = 1 if vote == "FFA" else int(
+                vote.split('v')[0])
             original_vote = None
             for vote_option, voter_ids in self.votes.items():
                 if interaction.user.id in voter_ids:
@@ -769,7 +762,7 @@ class VoteView(View):
                     voter_ids.remove(interaction.user.id)
             if original_vote != vote:  # They changed their vote or are a new voter
                 self.votes[vote].append(interaction.user.id)
-            if len(self.votes[vote]) == 6:
+            if len(self.votes[vote]) >= self.mogi.players_per_room / 2:
                 self.found_winner = True  # This fixes a race condition
                 await self.make_teams(players_per_team, vote)
             for curr_button in self.children:
@@ -856,17 +849,14 @@ def get_tier_mkw(mmr: int, players: List[Player]):
         return '1'
     else:
         return '0'
-	#for tier in tier_info:
-        #if (tier["minimum_mmr"] is None or mmr >= tier["minimum_mmr"]) and (
-                #tier["maximum_mmr"] is None or mmr <= tier["maximum_mmr"]):
-            #return tier["ladder_order"]
 
-		
+
 def player_threshold_check(mmr: int, players: List[Player]):
-	for player in players:
-		if player.mmr < mmr:
-			return False
-	return True
+    for player in players:
+        if player.mmr < mmr:
+            return False
+    return True
+
 
 def get_tier_mk8dx(mmr: int):
     if mmr > 14000:
@@ -899,3 +889,7 @@ def get_tier_mk8dx(mmr: int):
         return 'FG'
     else:
         return 'G'
+
+
+def get_tier_mkworld(mmr: int):
+    return 'Q'

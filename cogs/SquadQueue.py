@@ -4,6 +4,7 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
+from discord.app_commands import Range
 from datetime import datetime, timezone, timedelta
 import pytz
 import time
@@ -52,6 +53,11 @@ def mkw_players_allowed(players: List[Player], threshold: int) -> bool:
 
 
 def mk8dx_players_allowed(players: List[Player], threshold: int) -> bool:
+    """Returns true if the given list of players would be allowed to play together"""
+    return basic_threshold_players_allowed(players, threshold)
+
+
+def mkworld_players_allowed(players: List[Player], threshold: int) -> bool:
     """Returns true if the given list of players would be allowed to play together"""
     return basic_threshold_players_allowed(players, threshold)
 
@@ -205,6 +211,11 @@ class SquadQueue(commands.Cog):
 
         self.URL = bot.config["url"]
 
+        self.PLAYERS_PER_ROOM: int = self.bot.config.get(
+            "PLAYERS_PER_ROOM", 12)
+
+        self.ALLOWED_VOTE_BUTTONS = []
+
         self.PLACEMENT_PLAYER_MMR = self.bot.config["PLACEMENT_PLAYER_MMR"]
 
         self.ROOM_JOIN_PENALTY_TIME = self.bot.config["ROOM_JOIN_PENALTY_TIME"]
@@ -298,6 +309,11 @@ class SquadQueue(commands.Cog):
                     if "PLACEMENT_PLAYER_MMR" in settings_dict:
                         self.PLACEMENT_PLAYER_MMR = settings_dict["PLACEMENT_PLAYER_MMR"]
                         common.CONFIG["PLACEMENT_PLAYER_MMR"] = settings_dict["PLACEMENT_PLAYER_MMR"]
+                    if "PLAYERS_PER_ROOM" in settings_dict:
+                        self.PLAYERS_PER_ROOM = settings_dict["PLAYERS_PER_ROOM"]
+                        common.CONFIG["PLAYERS_PER_ROOM"] = settings_dict["PLAYERS_PER_ROOM"]
+                    if "ALLOWED_VOTE_BUTTONS" in settings_dict and len(settings_dict["ALLOWED_VOTE_BUTTONS"]) > 0:
+                        self.ALLOWED_VOTE_BUTTONS = settings_dict["ALLOWED_VOTE_BUTTONS"]
             except BaseException:
                 print(traceback.format_exc())
 
@@ -310,7 +326,10 @@ class SquadQueue(commands.Cog):
             "MATCHMAKING_BOTTOM_MMR": common.CONFIG["MATCHMAKING_BOTTOM_MMR"],
             "MATCHMAKING_TOP_MMR": common.CONFIG["MATCHMAKING_TOP_MMR"],
             "FIRST_EVENT_TIME": common.CONFIG["FIRST_EVENT_TIME"],
-            "PLACEMENT_PLAYER_MMR": self.PLACEMENT_PLAYER_MMR}
+            "PLACEMENT_PLAYER_MMR": self.PLACEMENT_PLAYER_MMR,
+            "PLAYERS_PER_ROOM": self.PLAYERS_PER_ROOM,
+            "ALLOWED_VOTE_BUTTONS": self.ALLOWED_VOTE_BUTTONS
+        }
         try:
             with open(STAFF_SETTINGS_PKL, 'wb') as f:
                 dill.dump(settings_dict, f)
@@ -335,6 +354,9 @@ class SquadQueue(commands.Cog):
             self.SCHEDULE_CHANNEL = self.bot.get_channel(
                 schedule_channel_id)
 
+        if not self.ALLOWED_VOTE_BUTTONS:
+            self.generate_vote_buttons()
+
         def is_queuebot(m: discord.Message):
             return m.author.id == self.bot.user.id
         purge_after_amt = 365 if self.is_production else 1
@@ -353,7 +375,7 @@ class SquadQueue(commands.Cog):
         try:
             if schedule_channel_id:
                 await self.SCHEDULE_CHANNEL.purge(check=is_queuebot, after=purge_after)
-                #if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
+                # if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
                 if self.queues_between_forced_format_queue:
                     await self.autoschedule_forced_format_times()
         except BaseException:
@@ -421,6 +443,8 @@ class SquadQueue(commands.Cog):
             return mkw_players_allowed(players, self.room_mmr_threshold)
         elif common.SERVER is common.Server.MK8DX:
             return mk8dx_players_allowed(players, self.room_mmr_threshold)
+        elif common.SERVER is common.Server.MKWorld:
+            return mkworld_players_allowed(players, self.room_mmr_threshold)
 
     # goes thru the msg queue for each channel and combines them
     # into as few messsages as possible, then sends them
@@ -504,6 +528,9 @@ class SquadQueue(commands.Cog):
             elif common.SERVER is common.Server.MKW:
                 # member = await self.bot.fetch_user(82862780591378432)
                 pass
+            if common.SERVER is common.Server.MKWorld:
+                # is actually a user and not a member
+                member = await self.bot.fetch_user(318637887597969419)
         mogi = self.get_mogi(interaction)
         if mogi is None or not mogi.started or not mogi.gathering:
             await interaction.response.send_message("Queue has not started yet.")
@@ -562,7 +589,7 @@ class SquadQueue(commands.Cog):
         squad = Team(players)
         mogi.teams.append(squad)
         host_str = " as a host " if host else " "
-        format_str = f"the {mogi.format} " if mogi.format else ""
+        format_str = f"the __**{mogi.format}**__ " if mogi.format else ""
         msg += f"{players[0].lounge_name} joined {format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
         if common.SERVER is common.Server.MKW:
             if players[0].is_matchmaking_mmr_adjusted:
@@ -718,6 +745,13 @@ class SquadQueue(commands.Cog):
                     msg += f"`{i}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} MMR){late_str}\n"
                     if i % mogi.players_per_room == 0:
                         msg += "ㅤ\n"
+            elif common.SERVER is common.Server.MKWorld:
+                all_confirmed_players.sort(reverse=True)
+                for i, player in enumerate(all_confirmed_players, 1):
+                    late_str = " `*`" if player in late_players else ""
+                    msg += f"`{i}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} MMR){late_str}\n"
+                    if i % mogi.players_per_room == 0:
+                        msg += "ㅤ\n"
             msg += f"\n**Last Updated:** {discord.utils.format_dt(datetime.now(timezone.utc), style='R')}"
             message = msg.split("\n")
 
@@ -765,6 +799,7 @@ class SquadQueue(commands.Cog):
         if self.SCHEDULE_CHANNEL:
             msg = ""
 
+            # maybe for mkworld if not 1 hour blocks for mogis
             if common.SERVER is common.Server.MKW:
                 msg += "**Daily Queue Times:**\n\n"
 
@@ -786,7 +821,7 @@ class SquadQueue(commands.Cog):
             time_between_ff_queues_hours = time_between_ff_queues.total_seconds() / 3600
 
             if not current_rotation:
-                msg+= f"**Current Interval** - N/A\n\n"
+                msg += f"**Current Interval** - N/A\n\n"
             elif time_between_ff_queues_hours.is_integer():
                 msg += f"**Current Interval** - {int(time_between_ff_queues_hours)} hours\n\n"
             else:
@@ -865,9 +900,9 @@ class SquadQueue(commands.Cog):
     @app_commands.command(name="scoreboard")
     @app_commands.guild_only()
     async def scoreboard(self, interaction: discord.Interaction):
-        """Displays the scoreboard of the room. Only works in thread channels for SQ rooms."""
-        if common.SERVER is not common.Server.MK8DX:
-            await interaction.response.send_message(f"Command is only usable for MK8DX.", ephemeral=True)
+        """Displays the scoreboard of the room. Only works in thread channels for queue rooms."""
+        if common.SERVER is common.Server.MKW:
+            await interaction.response.send_message(f"Command is only usable for MK8DX and MKWorld.", ephemeral=True)
             return
 
         if not isinstance(interaction.channel, discord.Thread):
@@ -886,7 +921,7 @@ class SquadQueue(commands.Cog):
             await interaction.response.send_message(f"The Thread object cannot be found.", ephemeral=True)
             return
 
-        format_ = round(12 / len(room.teams))
+        format_ = round(self.ongoing_event.players_per_room / len(room.teams))
 
         msg = f"!submit {format_} {room.tier}\n"
         for team in room.teams:
@@ -1051,6 +1086,54 @@ class SquadQueue(commands.Cog):
         self.old_events = []
         self.LAUNCH_NEW_EVENTS = True
         await interaction.response.send_message("All events have been deleted.  Queue will restart shortly.")
+
+    async def update_current_event_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice[str]]:
+        total = self.PLAYERS_PER_ROOM
+        choices = []
+
+        for i in range(1, total):
+            if total % i != 0:
+                continue
+            fmt = "FFA" if i == 1 else f"{i}v{i}"
+            if current.lower() in fmt.lower():
+                choices.append(app_commands.Choice(name=fmt, value=fmt))
+
+        if "voting".startswith(current.lower()):
+            choices.append(app_commands.Choice(name="Voting", value="Voting"))
+
+        return choices[:25]
+
+    @app_commands.command(name="update_current_event_format")
+    @app_commands.autocomplete(format_string=update_current_event_autocomplete)
+    @app_commands.guild_only()
+    async def update_current_event_format(self, interaction: discord.Interaction, format_string: str):
+        """Update the currently gathering mogi's format. Staff use only."""
+
+        if format_string == "Voting":
+            self.ongoing_event.format = None
+        elif format_string == "FFA":
+            self.ongoing_event.format = "FFA"
+        else:
+            try:
+                num_players_per_team = int(format_string.split("v")[0])
+            except (ValueError, IndexError):
+                await interaction.response.send_message(
+                    f"Invalid format string: `{format_string}`", ephemeral=True
+                )
+                return
+
+            if self.PLAYERS_PER_ROOM % num_players_per_team != 0:
+                await interaction.response.send_message(
+                    f"`{format_string}` is not valid — {num_players_per_team} does not divide evenly into {self.PLAYERS_PER_ROOM}.",
+                    ephemeral=True
+                )
+                return
+
+            self.ongoing_event.format = format_string
+
+        await interaction.response.send_message(f"The currently gathering event's format is now {format_string}")
 
     async def timezone_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         current_upper = current.upper()
@@ -1333,7 +1416,6 @@ class SquadQueue(commands.Cog):
 
         await interaction.response.send_message("Cleared list of Squad Queue Times.")
 
-    
     @staticmethod
     async def end_voting(mogi: Mogi):
         """Ends voting in all rooms with ongoing votes."""
@@ -1368,6 +1450,8 @@ class SquadQueue(commands.Cog):
                     if common.SERVER is common.Server.MKW:
                         msg += f"{room.view.room_start_msg_link}\n"
                     elif common.SERVER is common.Server.MK8DX:
+                        msg += f"{room.channel.jump_url}\n"
+                    elif common.SERVER is common.Server.MKWorld:
                         msg += f"{room.channel.jump_url}\n"
                     msg += room.view.teams_text
                     msg += "ㅤ"
@@ -1481,8 +1565,9 @@ class SquadQueue(commands.Cog):
                 room_msg += f"\n{potential_host_str}\n"
 
                 if not mogi.format:
-                    vote_formats = "FFA, 2v2, 3v3, 4v4" if common.SERVER is common.Server.MK8DX else "FFA, 2v2, 3v3, 4v4, 6v6"
-                    room_msg += f"Vote for format {vote_formats}.\n"
+                    vote_formats = [b["format_name"] for b in mogi.buttons]
+                    vote_formats_str = ", ".join(vote_formats)
+                    room_msg += f"Vote for format {vote_formats_str}.\n"
 
                 room_msg += f"""
 {player_mentions} {extra_member_mentions}
@@ -1584,9 +1669,10 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 mogi.gathering = False
                 self.cur_extension_message = None
                 return True
-            num_leftover_teams = mogi.count_registered() % (12 // mogi.max_player_per_team)
+            num_leftover_teams = mogi.count_registered() % (
+                mogi.players_per_room // mogi.max_player_per_team)
             num_needed_teams = (
-                12 // mogi.max_player_per_team) - num_leftover_teams
+                mogi.players_per_room // mogi.max_player_per_team) - num_leftover_teams
             if common.SERVER is common.Server.MKW and (
                 force_start_time -
                 timedelta(
@@ -1675,7 +1761,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             self.ongoing_event.started = True
             self.ongoing_event.gathering = True
             await self.unlockdown(self.ongoing_event.mogi_channel)
-            format_str = f"{self.ongoing_event.format} " if self.ongoing_event.format else ""
+            format_str = f"**{self.ongoing_event.format}** " if self.ongoing_event.format else ""
             await self.ongoing_event.mogi_channel.send(
                 f"A queue is gathering for the {format_str}mogi {discord.utils.format_dt(self.ongoing_event.start_time, style='R')} - Type `/c` to join, `/ch` to join and volunteer to host, and `/d` to drop.")
 
@@ -1723,13 +1809,35 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             # it's joining period and during its extension period
             if next_event_start_time < datetime.now(timezone.utc):
                 return
+
             format = None
+            while len(
+                    self.forced_format_times) > 0 and datetime.now(timezone.utc) > self.forced_format_times[0][0]:
+                self.forced_format_times.pop(0)
             if len(
                     self.forced_format_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.forced_format_times[0][0]:
                 last_event = self.forced_format_times.pop(0)
                 format = last_event[1]
+
+                if format != "FFA":
+                    try:
+                        num_players_per_team = int(format.split("v")[0])
+                    except (ValueError, IndexError):
+                        print(
+                            f"Invalid format string encountered: {format}", flush=True)
+                        format = None
+
+                    if self.PLAYERS_PER_ROOM % num_players_per_team != 0:
+                        print(
+                            f"Format {format} is invalid: {num_players_per_team} does not divide evenly into {self.PLAYERS_PER_ROOM}")
+                        format = None
+
                 if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue and len(self.forced_format_times) == 0:
                     await self.autoschedule_forced_format_times()
+
+            while len(
+                    self.sq_times) > 0 and datetime.now(timezone.utc) > self.sq_times[0]:
+                self.sq_times.pop(0)
             if len(
                     self.sq_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.sq_times[0]:
                 self.sq_times.pop(0)
@@ -1745,9 +1853,11 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 await self.MOGI_CHANNEL.send(
                     "Squad Queue is currently going on!  The queue will remain closed.")
                 return
+
             self.next_event = Mogi(sq_id=1,
                                    max_players_per_team=1,
-                                   players_per_room=12,
+                                   players_per_room=self.PLAYERS_PER_ROOM,
+                                   buttons=self.ALLOWED_VOTE_BUTTONS,
                                    mogi_channel=self.MOGI_CHANNEL,
                                    is_automated=True,
                                    start_time=next_event_start_time,
@@ -1873,6 +1983,118 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             mogi.start_time, style="R")
         return f"`#{mogi.sq_id}` **{mogi.max_player_per_team}v{mogi.max_player_per_team}:** {mogi_time} - {mogi_time_relative}"
 
+    async def print_vote_button_info(self, interaction):
+        str = ""
+
+        str += f"The new amount of players per room is {self.PLAYERS_PER_ROOM}\n"
+        str += f"The new vote buttons for this amount of players per room are "
+
+        format_names = [btn["format_name"]
+                        for btn in self.ALLOWED_VOTE_BUTTONS]
+        str += ", ".join(format_names)
+
+        self.dump_staff_settings()
+
+        await interaction.response.send_message(str)
+
+    @app_commands.command(name="update_players_per_room")
+    @app_commands.guild_only()
+    async def update_players_per_room(self, interaction: discord.Interaction, new_amount: Range[int, 2]):
+        """Sets the new amount of player per room for queue.  Staff use only."""
+        self.PLAYERS_PER_ROOM = new_amount
+        self.generate_vote_buttons()
+
+        common.CONFIG["PLAYERS_PER_ROOM"] = new_amount
+
+        await self.print_vote_button_info(interaction)
+
+    def generate_vote_buttons(self):
+        new_vote_button_list = []
+        iterator = iter(range(1, self.PLAYERS_PER_ROOM))
+
+        for i in iterator:
+            if self.PLAYERS_PER_ROOM % i == 0:
+                format_name = "FFA" if i == 1 else f"{i}v{i}"
+                new_vote_button_list.append({
+                    "num_players_per_team": i,
+                    "format_name": format_name
+                })
+
+        self.ALLOWED_VOTE_BUTTONS = new_vote_button_list
+
+    async def add_vote_button_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        total = self.PLAYERS_PER_ROOM
+
+        existing_formats = {btn["format_name"]
+                            for btn in self.ALLOWED_VOTE_BUTTONS}
+
+        new_formats = []
+        for i in range(1, total):
+            if total % i != 0:
+                continue
+            fmt = "FFA" if i == 1 else f"{i}v{i}"
+            if fmt not in existing_formats and current in fmt:
+                new_formats.append(fmt)
+
+        return [
+            app_commands.Choice(name=fmt, value=fmt)
+            for fmt in new_formats[:25]
+        ]
+
+    @app_commands.command(name="add_vote_button")
+    @app_commands.autocomplete(vote_string=add_vote_button_autocomplete)
+    @app_commands.guild_only()
+    async def add_vote_button(self, interaction: discord.Interaction, vote_string: str):
+        """Adds a vote button from list of possible buttons.  Staff use only."""
+        if vote_string == "FFA":
+            num_players_per_team = 1
+        else:
+            try:
+                num_players_per_team = int(vote_string.split("v")[0])
+            except (ValueError, IndexError):
+                await interaction.response.send_message("Invalid format name.", ephemeral=True)
+                return
+
+            if self.PLAYERS_PER_ROOM % num_players_per_team != 0:
+                await interaction.response.send_message(
+                    f"Invalid team size. `{num_players_per_team}` must divide evenly into `{self.PLAYERS_PER_ROOM}`.",
+                    ephemeral=True
+                )
+                return
+
+        self.ALLOWED_VOTE_BUTTONS.append({
+            "num_players_per_team": num_players_per_team,
+            "format_name": vote_string
+        })
+
+        self.ALLOWED_VOTE_BUTTONS.sort(key=lambda x: x["num_players_per_team"])
+
+        await self.print_vote_button_info(interaction)
+
+    async def remove_vote_button_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        choices = [
+            app_commands.Choice(
+                name=btn["format_name"], value=btn["format_name"])
+            for btn in self.ALLOWED_VOTE_BUTTONS
+            if current in btn["format_name"]
+        ]
+        return choices[:25]
+
+    @app_commands.command(name="remove_vote_button")
+    @app_commands.autocomplete(vote_string=remove_vote_button_autocomplete)
+    @app_commands.guild_only()
+    async def remove_vote_button(self, interaction: discord.Interaction, vote_string: str):
+        """Removes a vote button from list of possible buttons.  Staff use only."""
+        if len(self.ALLOWED_VOTE_BUTTONS) <= 1:
+            await interaction.response.send_message("You cannnot remove last possible button.")
+            return
+
+        self.ALLOWED_VOTE_BUTTONS = [
+            btn for btn in self.ALLOWED_VOTE_BUTTONS if btn["format_name"] != vote_string
+        ]
+
+        await self.print_vote_button_info(interaction)
+
     @commands.command(name="sync")
     @commands.is_owner()
     async def sync(self, ctx):
@@ -1901,17 +2123,27 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(82862780591378432)
+            elif common.SERVER is common.Server.MKWorld:
+                member = await self.bot.fetch_user(318637887597969419)
         check_players = [member]
         check_players.extend(members)
         players = self.ratings.get_rating(check_players)
-        for i in range(0, 12):
-            player = Player(players[0].member,
-                            f"{players[0].lounge_name}{i + 1}",
-                            players[0].mmr + (10 * i))
+        player_member = member
+        player_name = member.display_name
+        player_mmr = 5000
+        if len(players) > 0 and players[0]:
+            player_member = players[0].member
+            player_name = players[0].lounge_name
+            player_mmr = players[0].mmr
+
+        for i in range(0, self.PLAYERS_PER_ROOM):
+            player = Player(player_member,
+                            f"{player_name}{i + 1}",
+                            player_mmr + (10 * i))
             player.confirmed = True
             squad = Team([player])
             mogi.teams.append(squad)
-        msg = f"{players[0].lounge_name} added 12 times."
+        msg = f"{player_name} added {self.PLAYERS_PER_ROOM} times."
         await self.queue_or_send(ctx, msg)
         if await self.check_close_event_change():
             await self.launch_mogi()
@@ -1931,6 +2163,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
                 member = await self.GUILD.fetch_member(1114699357179088917)
+            elif common.SERVER is common.Server.MKWorld:
+                member = await self.bot.fetch_user(318637887597969419)
         for i, rating in enumerate(ratings, 1):
             if common.is_int(rating):
                 player = Player(member, f"{member.name} {i}", int(
@@ -1958,6 +2192,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 member = await self.bot.fetch_user(318637887597969419)
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(314861232693706752)
+            elif common.SERVER is common.Server.MKWorld:
+                member = await self.bot.fetch_user(318637887597969419)
         check_players = [member]
         check_players.extend(members)
         players = self.ratings.get_rating(check_players)

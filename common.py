@@ -12,12 +12,15 @@ with open('./config.json', 'r') as cjson:
 class Server(Enum):
     MKW = auto()
     MK8DX = auto()
+    MKWorld = auto()
 
 
 if CONFIG["lounge"] == "MKW":
     SERVER = Server.MKW
 elif CONFIG["lounge"] == "MK8DX":
     SERVER = Server.MK8DX
+elif CONFIG["lounge"] == "MKWorld":
+    SERVER = Server.MKWorld
 else:
     raise ValueError(
         f"{CONFIG['lounge']} is not a valid option for the 'lounge' attribute in the config.")

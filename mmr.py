@@ -39,6 +39,8 @@ class Ratings:
             rating_func = self._pull_mk8dx_ratings
         elif common.SERVER is common.Server.MKW:
             rating_func = self._pull_mkw_ratings
+        elif common.SERVER is common.Server.MKWorld:
+            rating_func = self._pull_mkworld_ratings
         else:
             raise Exception("Unreachable code.")
 
@@ -57,12 +59,16 @@ class Ratings:
         self.first_run_complete = True
 
     async def _pull_mk8dx_ratings(self) -> bool:
-        url = f"""{common.CONFIG["url"]}/api/player/list"""
+        url = f"""{common.CONFIG["url"]}/api/player/list?game=mk8dx"""
         return await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mk8dx_response)
 
     async def _pull_mkw_ratings(self) -> bool:
         url = f"""{common.CONFIG["url"]}/api/ladderplayer.php?ladder_type={common.CONFIG["track_type"]}&all&fields=discord_user_id,current_mmr,player_name"""
         return await Ratings._pull_ratings(url, self._parse_mkw_ratings, self._validate_mkw_response)
+
+    async def _pull_mkworld_ratings(self) -> bool:
+        url = f"""{common.CONFIG["url"]}/api/player/list?game=mkworld"""
+        return await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mkworld_response)
 
     @staticmethod
     async def _pull_ratings(url, parser, validator) -> bool:
@@ -130,6 +136,42 @@ class Ratings:
             rating = common.CONFIG["PLACEMENT_PLAYER_MMR"] if player.get(
                 "mmr") is None else player.get("mmr")
             self.ratings[discord_id] = (rating, player["name"])
+
+    def _validate_mkworld_response(self, results: dict):
+        if not isinstance(results, dict):
+            raise BadRatingData("Response is not a dictionary")
+        all_players = results.get("players")
+        if all_players is None:
+            raise BadRatingData(
+                "Key word 'players' not found in JSON response.")
+        #
+        required_player_amount = 100
+        if len(all_players) < required_player_amount:
+            raise BadPlayerDataLength(
+                f"Not enough players found in the JSON response. Required {required_player_amount} players in JSON response, only found {len(all_players)} players in JSON response."
+                "")
+
+        strongly_required_fields = [("name", str)]
+        weakly_required_fields = [("discordId", str), ("mmr", int)]
+        for player in all_players:
+            # Ensure all strongly required fields are in the player JSON and
+            # that the type is correct
+            for strongly_req_field_name, strongly_req_field_type in strongly_required_fields:
+                if strongly_req_field_name not in player:
+                    raise BadPlayerData(
+                        f"Missing required field '{strongly_req_field_name}' in the following player: {player}")
+                field_data = player[strongly_req_field_name]
+                if not isinstance(field_data, strongly_req_field_type):
+                    raise BadPlayerData(
+                        f"For field '{strongly_req_field_name}', expected type '{strongly_req_field_type}' received {type(field_data)} for player: {player}")
+            # Ensure that if the weakly required field is in the JSON, the type
+            # is correct
+            for weakly_req_field_name, weakly_req_field_type in weakly_required_fields:
+                if weakly_req_field_name in player:
+                    field_data = player[weakly_req_field_name]
+                    if not isinstance(field_data, weakly_req_field_type):
+                        raise BadPlayerData(
+                            f"For field '{weakly_req_field_name}', expected type '{weakly_req_field_type}' received {type(field_data)} for player: {player}")
 
     def _validate_mkw_response(self, results: dict):
         if not isinstance(results, dict):
