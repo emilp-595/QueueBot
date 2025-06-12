@@ -1814,6 +1814,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             while len(
                     self.forced_format_times) > 0 and datetime.now(timezone.utc) > self.forced_format_times[0][0]:
                 self.forced_format_times.pop(0)
+            if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue and len(self.forced_format_times) == 0:
+                await self.autoschedule_forced_format_times()
             if len(
                     self.forced_format_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.forced_format_times[0][0]:
                 last_event = self.forced_format_times.pop(0)
