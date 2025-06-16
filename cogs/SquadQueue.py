@@ -590,7 +590,7 @@ class SquadQueue(commands.Cog):
         mogi.teams.append(squad)
         host_str = " as a host " if host else " "
         format_str = f"the __**{mogi.format}**__ " if mogi.format else ""
-        msg += f"{players[0].lounge_name} joined {format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
+        msg += f"{players[0].lounge_name} joined the {self.ongoing_event.players_per_room} player {format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
         if common.SERVER is common.Server.MKW:
             if players[0].is_matchmaking_mmr_adjusted:
                 msg += f"\nPlayer considered {players[0].adjusted_mmr} MMR for matchmaking purposes."
@@ -725,7 +725,7 @@ class SquadQueue(commands.Cog):
 
             msg = f"**Queue closing: {discord.utils.format_dt(mogi.start_time)}**\n\n"
             format_str = f"{mogi.format} " if mogi.format else ""
-            msg += f"**Current {format_str}Mogi List:**\n"
+            msg += f"**Current {mogi.players_per_room} Player {format_str}Mogi List:**\n"
             if common.SERVER is common.Server.MKW:
                 for i, player in enumerate(on_time_players, 1):
                     adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
@@ -1763,7 +1763,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             await self.unlockdown(self.ongoing_event.mogi_channel)
             format_str = f"**{self.ongoing_event.format}** " if self.ongoing_event.format else ""
             await self.ongoing_event.mogi_channel.send(
-                f"A queue is gathering for the {format_str}mogi {discord.utils.format_dt(self.ongoing_event.start_time, style='R')} - Type `/c` to join, `/ch` to join and volunteer to host, and `/d` to drop.")
+                f"A queue is gathering for the {self.ongoing_event.players_per_room} player {format_str}mogi {discord.utils.format_dt(self.ongoing_event.start_time, style='R')} - Type `/c` to join, `/ch` to join and volunteer to host, and `/d` to drop.")
 
     @tasks.loop(seconds=20.0)
     async def sqscheduler(self):
@@ -1996,6 +1996,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         str += ", ".join(format_names)
 
         self.dump_staff_settings()
+        self.ongoing_event.buttons = self.ALLOWED_VOTE_BUTTONS
 
         await interaction.response.send_message(str)
 
@@ -2008,6 +2009,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
 
         common.CONFIG["PLAYERS_PER_ROOM"] = new_amount
 
+        self.ongoing_event.players_per_room = new_amount
         await self.print_vote_button_info(interaction)
 
     def generate_vote_buttons(self):
