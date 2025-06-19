@@ -170,6 +170,9 @@ class SquadQueue(commands.Cog):
 
         self.sq_times: List[datetime] = []
 
+        self.specific_player_amount_queue_times: List[Tuple[datetime, int]] = [
+        ]
+
         self.forced_format_times: List[Tuple[datetime, str]] = []
 
         self.forced_format_order: List[str] = bot.config["FORCED_FORMAT_ORDER"]
@@ -355,7 +358,8 @@ class SquadQueue(commands.Cog):
                 schedule_channel_id)
 
         if not self.ALLOWED_VOTE_BUTTONS:
-            self.generate_vote_buttons()
+            self.ALLOWED_VOTE_BUTTONS = SquadQueue.generate_vote_buttons(
+                self.PLAYERS_PER_ROOM)
 
         def is_queuebot(m: discord.Message):
             return m.author.id == self.bot.user.id
@@ -793,8 +797,8 @@ class SquadQueue(commands.Cog):
         except Exception as e:
             print(traceback.format_exc())
 
-    async def update_forced_format_list(self):
-        """Update the list of Mogis with scheduled formats"""
+    async def update_schedule_channel(self):
+        """Update the Schedule Channel"""
 
         if self.SCHEDULE_CHANNEL:
             msg = ""
@@ -810,6 +814,14 @@ class SquadQueue(commands.Cog):
                 while curr_time < cutoff_time:
                     msg += f"{discord.utils.format_dt(curr_time, style='t')}\n"
                     curr_time += self.QUEUE_OPEN_TIME
+
+                msg += "\n"
+
+            if len(self.specific_player_amount_queue_times) > 0:
+                msg += "**List of Mogis with Set Amount of Players:**\n\n"
+
+                for index, event in enumerate(self.specific_player_amount_queue_times):
+                    msg += f"`#{index + 1}` **{event[1]} Players:** {discord.utils.format_dt(event[0])} - {discord.utils.format_dt(event[0], style='R')}\n"
 
                 msg += "\n"
 
@@ -1271,7 +1283,7 @@ class SquadQueue(commands.Cog):
         self.forced_format_times = sorted(updated_list, key=lambda x: x[0])
 
         if self.SCHEDULE_CHANNEL:
-            await self.update_forced_format_list()
+            await self.update_schedule_channel()
 
         msg = f"Added new {format} mogi at {discord.utils.format_dt(dt)}"
 
@@ -1305,7 +1317,7 @@ class SquadQueue(commands.Cog):
         self.forced_format_times = sorted(updated_list, key=lambda x: x[0])
 
         if self.SCHEDULE_CHANNEL:
-            await self.update_forced_format_list()
+            await self.update_schedule_channel()
 
     async def remove_time_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         choices = [
@@ -1334,7 +1346,7 @@ class SquadQueue(commands.Cog):
                 await interaction.response.send_message(f"No entry found for {time}.")
 
             if self.SCHEDULE_CHANNEL:
-                await self.update_forced_format_list()
+                await self.update_schedule_channel()
         except ValueError:
             await interaction.response.send_message("Invalid datetime format provided.")
 
@@ -1344,9 +1356,83 @@ class SquadQueue(commands.Cog):
         """Clears current list of forced format times.  Staff use only."""
         self.forced_format_times = []
         if self.SCHEDULE_CHANNEL:
-            await self.update_forced_format_list()
+            await self.update_schedule_channel()
 
         await interaction.response.send_message("Cleared list of Forced Format Times.")
+
+    @app_commands.command(name="schedule_player_amount_times")
+    @app_commands.autocomplete(tzone=timezone_autocomplete)
+    @app_commands.autocomplete(date=date_autocomplete)
+    @app_commands.autocomplete(time=time_autocomplete)
+    @app_commands.guild_only()
+    async def schedule_player_amount_times(self, interaction: discord.Interaction, tzone: str, date: str, time: str, player_amount: Range[int, 2]):
+        """Schedule mogis to be rooms of certain sizes. Staff use only."""
+        curr_time = datetime.now(timezone.utc)
+        dt = datetime.fromisoformat(time).replace(tzinfo=timezone.utc)
+        timestamp = dt.timestamp()
+
+        if curr_time > dt:
+            msg = ""
+            msg += f"Timestamp {timestamp} represents {time} and is in the past, submit a future date.\n"
+            msg += "This timestamp has not been added."
+            await interaction.response.send_message(msg)
+            return
+
+        new_event = (dt, player_amount)
+        event_dict = {
+            event[0]: event for event in self.specific_player_amount_queue_times}
+        event_dict[new_event[0]] = new_event
+        updated_list = list(event_dict.values())
+        self.specific_player_amount_queue_times = sorted(
+            updated_list, key=lambda x: x[0])
+
+        if self.SCHEDULE_CHANNEL:
+            await self.update_schedule_channel()
+
+        msg = f"Added new {player_amount} player mogi at {discord.utils.format_dt(dt)}"
+
+        await interaction.response.send_message(msg)
+
+    async def remove_player_amount_time_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        choices = [
+            app_commands.Choice(
+                name=f"{dt.strftime('%Y-%m-%d %H:%M:%S')} - {fmt}", value=dt.isoformat()
+            )
+            for dt, fmt in self.specific_player_amount_queue_times[:25]
+        ]
+        return choices
+
+    @app_commands.command(name="remove_player_amount_time")
+    @app_commands.autocomplete(time=remove_player_amount_time_autocomplete)
+    async def remove_player_amount_time(self, interaction: discord.Interaction, time: str):
+        """Remove a specific set player amount queue time by datetime.  Staff use only."""
+        try:
+            dt_to_remove = datetime.fromisoformat(time)
+
+            original_count = len(self.specific_player_amount_queue_times)
+            self.specific_player_amount_queue_times = [
+                entry for entry in self.specific_player_amount_queue_times if entry[0] != dt_to_remove
+            ]
+
+            if len(self.specific_player_amount_queue_times) < original_count:
+                await interaction.response.send_message(f"Removed {discord.utils.format_dt(dt_to_remove, 'f')} from the Set Player Amount times.")
+            else:
+                await interaction.response.send_message(f"No entry found for {time}.")
+
+            if self.SCHEDULE_CHANNEL:
+                await self.update_schedule_channel()
+        except ValueError:
+            await interaction.response.send_message("Invalid datetime format provided.")
+
+    @app_commands.command(name="clear_player_amount_times")
+    @app_commands.guild_only()
+    async def clear_player_amount_times(self, interaction: discord.Interaction):
+        """Clears current list of Set Player Amount times.  Staff use only."""
+        self.specific_player_amount_queue_times = []
+        if self.SCHEDULE_CHANNEL:
+            await self.update_schedule_channel()
+
+        await interaction.response.send_message("Cleared list of Set Player Amount Times.")
 
     @app_commands.command(name="schedule_sq_times")
     @app_commands.autocomplete(tzone=timezone_autocomplete)
@@ -1642,9 +1728,9 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 self.ongoing_event.assign_roles(guild=self.GUILD))
         asyncio.create_task(SquadQueue.handle_voting_and_history(
             self.ongoing_event, self.HISTORY_CHANNEL))
-        if mogi.format:
+        if mogi.format or mogi.players_per_room != self.PLAYERS_PER_ROOM:
             if self.SCHEDULE_CHANNEL:
-                await self.update_forced_format_list()
+                await self.update_schedule_channel()
         self.old_events.append(self.ongoing_event)
         self.ongoing_event = None
 
@@ -1837,6 +1923,17 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                 if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue and len(self.forced_format_times) == 0:
                     await self.autoschedule_forced_format_times()
 
+            player_amount = self.PLAYERS_PER_ROOM
+            buttons = self.ALLOWED_VOTE_BUTTONS
+            while len(
+                    self.specific_player_amount_queue_times) > 0 and datetime.now(timezone.utc) > self.specific_player_amount_queue_times[0][0]:
+                self.specific_player_amount_queue_times.pop(0)
+            if len(
+                    self.specific_player_amount_queue_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.specific_player_amount_queue_times[0][0]:
+                last_event = self.specific_player_amount_queue_times.pop(0)
+                player_amount = last_event[1]
+                buttons = SquadQueue.generate_vote_buttons(player_amount)
+
             while len(
                     self.sq_times) > 0 and datetime.now(timezone.utc) > self.sq_times[0]:
                 self.sq_times.pop(0)
@@ -1858,8 +1955,8 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
 
             self.next_event = Mogi(sq_id=1,
                                    max_players_per_team=1,
-                                   players_per_room=self.PLAYERS_PER_ROOM,
-                                   buttons=self.ALLOWED_VOTE_BUTTONS,
+                                   players_per_room=player_amount,
+                                   buttons=buttons,
                                    mogi_channel=self.MOGI_CHANNEL,
                                    is_automated=True,
                                    start_time=next_event_start_time,
@@ -2005,26 +2102,28 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
     async def update_players_per_room(self, interaction: discord.Interaction, new_amount: Range[int, 2]):
         """Sets the new amount of player per room for queue.  Staff use only."""
         self.PLAYERS_PER_ROOM = new_amount
-        self.generate_vote_buttons()
+        self.ALLOWED_VOTE_BUTTONS = SquadQueue.generate_vote_buttons(
+            self.PLAYERS_PER_ROOM)
 
         common.CONFIG["PLAYERS_PER_ROOM"] = new_amount
 
         self.ongoing_event.players_per_room = new_amount
         await self.print_vote_button_info(interaction)
 
-    def generate_vote_buttons(self):
+    @staticmethod
+    def generate_vote_buttons(player_amount):
         new_vote_button_list = []
-        iterator = iter(range(1, self.PLAYERS_PER_ROOM))
+        iterator = iter(range(1, player_amount))
 
         for i in iterator:
-            if self.PLAYERS_PER_ROOM % i == 0:
+            if player_amount % i == 0:
                 format_name = "FFA" if i == 1 else f"{i}v{i}"
                 new_vote_button_list.append({
                     "num_players_per_team": i,
                     "format_name": format_name
                 })
 
-        self.ALLOWED_VOTE_BUTTONS = new_vote_button_list
+        return new_vote_button_list
 
     async def add_vote_button_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         total = self.PLAYERS_PER_ROOM
