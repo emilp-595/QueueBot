@@ -804,7 +804,7 @@ class SquadQueue(commands.Cog):
             msg = ""
 
             # maybe for mkworld if not 1 hour blocks for mogis
-            if common.SERVER is common.Server.MKW:
+            if common.SERVER is common.Server.MKW or common.SERVER is common.Server.MKWorld:
                 msg += "**Daily Queue Times:**\n\n"
 
                 curr_time = self.compute_next_event_open_time() + self.JOINING_TIME + \
