@@ -593,7 +593,7 @@ class SquadQueue(commands.Cog):
         squad = Team(players)
         mogi.teams.append(squad)
         host_str = " as a host " if host else " "
-        format_str = f"the __**{mogi.format}**__ " if mogi.format else ""
+        format_str = f"__**{mogi.format}**__ " if mogi.format else ""
         msg += f"{players[0].lounge_name} joined the {self.ongoing_event.players_per_room} player {format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
         if common.SERVER is common.Server.MKW:
             if players[0].is_matchmaking_mmr_adjusted:
