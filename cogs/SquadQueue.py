@@ -1301,25 +1301,24 @@ class SquadQueue(commands.Cog):
             last_event += time_between_ff_queues
             start_index += 1
 
-        format = None
-        retroactive_time = last_event + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES
-        if retroactive_time == next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES:
+        ongoing_format = None
+        if last_event == next_event_open_time:
             current_index = (
                 start_index + self.FORCED_FORMAT_ORDER_OFFSET) % len(self.forced_format_order)
-            format = self.forced_format_order[current_index]
+            ongoing_format = self.forced_format_order[current_index]
 
-            if format != "FFA":
+            if ongoing_format != "FFA":
                 try:
-                    num_players_per_team = int(format.split("v")[0])
+                    num_players_per_team = int(ongoing_format.split("v")[0])
                 except (ValueError, IndexError):
                     print(
-                        f"Invalid format string encountered: {format}", flush=True)
-                    format = None
+                        f"Invalid format string encountered: {ongoing_format}", flush=True)
+                    ongoing_format = None
 
                 if self.PLAYERS_PER_ROOM % num_players_per_team != 0:
                     print(
-                        f"Format {format} is invalid: {num_players_per_team} does not divide evenly into {self.PLAYERS_PER_ROOM}")
-                    format = None
+                        f"Format {ongoing_format} is invalid: {num_players_per_team} does not divide evenly into {self.PLAYERS_PER_ROOM}")
+                    ongoing_format = None
 
         last_event += time_between_ff_queues
         start_index += 1
@@ -1343,7 +1342,7 @@ class SquadQueue(commands.Cog):
         if self.SCHEDULE_CHANNEL:
             await self.update_schedule_channel()
 
-        return format
+        return ongoing_format
 
     async def remove_time_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         choices = [
