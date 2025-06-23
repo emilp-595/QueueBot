@@ -933,7 +933,7 @@ class SquadQueue(commands.Cog):
             await interaction.response.send_message(f"The Thread object cannot be found.", ephemeral=True)
             return
 
-        format_ = round(self.ongoing_event.players_per_room / len(room.teams))
+        format_ = round(mogi.players_per_room / len(room.teams))
 
         msg = f"!submit {format_} {room.tier}\n"
         for team in room.teams:
