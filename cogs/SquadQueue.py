@@ -380,8 +380,8 @@ class SquadQueue(commands.Cog):
             if schedule_channel_id:
                 await self.SCHEDULE_CHANNEL.purge(check=is_queuebot, after=purge_after)
                 # if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
-                if self.queues_between_forced_format_queue:
-                    await self.autoschedule_forced_format_times()
+                # if self.queues_between_forced_format_queue:
+                #     await self.autoschedule_forced_format_times()
         except BaseException:
             print("Purging Schedule channel failed", flush=True)
             print(traceback.format_exc())
@@ -1295,10 +1295,34 @@ class SquadQueue(commands.Cog):
         time_between_ff_queues = self.queues_between_forced_format_queue * self.QUEUE_OPEN_TIME
 
         last_event = self.FORCED_FORMAT_FIRST_EVENT
+        next_event_open_time = self.compute_next_event_open_time()
         start_index = 0
-        while last_event < datetime.now(timezone.utc):
+        while last_event < datetime.now(timezone.utc) - self.QUEUE_OPEN_TIME:
             last_event += time_between_ff_queues
             start_index += 1
+
+        format = None
+        retroactive_time = last_event + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES
+        if retroactive_time == next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES:
+            current_index = (
+                start_index + self.FORCED_FORMAT_ORDER_OFFSET) % len(self.forced_format_order)
+            format = self.forced_format_order[current_index]
+
+            if format != "FFA":
+                try:
+                    num_players_per_team = int(format.split("v")[0])
+                except (ValueError, IndexError):
+                    print(
+                        f"Invalid format string encountered: {format}", flush=True)
+                    format = None
+
+                if self.PLAYERS_PER_ROOM % num_players_per_team != 0:
+                    print(
+                        f"Format {format} is invalid: {num_players_per_team} does not divide evenly into {self.PLAYERS_PER_ROOM}")
+                    format = None
+
+        last_event += time_between_ff_queues
+        start_index += 1
 
         total_iterations = self.FORCED_FORMAT_AUTOSCHEDULE_AMOUNT * \
             len(self.forced_format_order)
@@ -1319,6 +1343,8 @@ class SquadQueue(commands.Cog):
         if self.SCHEDULE_CHANNEL:
             await self.update_schedule_channel()
 
+        return format
+
     async def remove_time_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         choices = [
             app_commands.Choice(
@@ -1330,6 +1356,7 @@ class SquadQueue(commands.Cog):
 
     @app_commands.command(name="remove_forced_format_time")
     @app_commands.autocomplete(time=remove_time_autocomplete)
+    @app_commands.guild_only()
     async def remove_forced_format_time(self, interaction: discord.Interaction, time: str):
         """Remove a specific forced format time by datetime.  Staff use only."""
         try:
@@ -1404,6 +1431,7 @@ class SquadQueue(commands.Cog):
 
     @app_commands.command(name="remove_player_amount_time")
     @app_commands.autocomplete(time=remove_player_amount_time_autocomplete)
+    @app_commands.guild_only()
     async def remove_player_amount_time(self, interaction: discord.Interaction, time: str):
         """Remove a specific set player amount queue time by datetime.  Staff use only."""
         try:
@@ -1484,6 +1512,7 @@ class SquadQueue(commands.Cog):
 
     @app_commands.command(name="remove_sq_time")
     @app_commands.autocomplete(time=sq_time_autocomplete)
+    @app_commands.guild_only()
     async def remove_sq_time(self, interaction: discord.Interaction, time: str):
         """Remove a specific Squad Queue time.  Staff use only."""
         dt_to_remove = datetime.fromisoformat(time)
@@ -1901,7 +1930,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                     self.forced_format_times) > 0 and datetime.now(timezone.utc) > self.forced_format_times[0][0]:
                 self.forced_format_times.pop(0)
             if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue and len(self.forced_format_times) == 0:
-                await self.autoschedule_forced_format_times()
+                format = await self.autoschedule_forced_format_times()
             if len(
                     self.forced_format_times) > 0 and next_event_open_time + self.JOINING_TIME + self.DISPLAY_OFFSET_MINUTES == self.forced_format_times[0][0]:
                 last_event = self.forced_format_times.pop(0)
@@ -1921,7 +1950,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
                         format = None
 
                 if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue and len(self.forced_format_times) == 0:
-                    await self.autoschedule_forced_format_times()
+                    format = await self.autoschedule_forced_format_times()
 
             player_amount = self.PLAYERS_PER_ROOM
             buttons = self.ALLOWED_VOTE_BUTTONS
@@ -2068,7 +2097,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         except Exception as e:
             print(traceback.format_exc())
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=30)
     async def refresh_ratings(self):
         """Refreshes the ratings"""
         try:
