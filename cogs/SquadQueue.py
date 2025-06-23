@@ -2068,7 +2068,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         except Exception as e:
             print(traceback.format_exc())
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=30)
     async def refresh_ratings(self):
         """Refreshes the ratings"""
         try:
