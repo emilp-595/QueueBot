@@ -1297,7 +1297,7 @@ class SquadQueue(commands.Cog):
         last_event = self.FORCED_FORMAT_FIRST_EVENT
         next_event_open_time = self.compute_next_event_open_time()
         start_index = 0
-        while last_event < datetime.now(timezone.utc) - self.QUEUE_OPEN_TIME:
+        while last_event < datetime.now(timezone.utc) - time_between_ff_queues:
             last_event += time_between_ff_queues
             start_index += 1
 
