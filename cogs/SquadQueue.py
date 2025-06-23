@@ -1330,6 +1330,7 @@ class SquadQueue(commands.Cog):
 
     @app_commands.command(name="remove_forced_format_time")
     @app_commands.autocomplete(time=remove_time_autocomplete)
+    @app_commands.guild_only()
     async def remove_forced_format_time(self, interaction: discord.Interaction, time: str):
         """Remove a specific forced format time by datetime.  Staff use only."""
         try:
@@ -1404,6 +1405,7 @@ class SquadQueue(commands.Cog):
 
     @app_commands.command(name="remove_player_amount_time")
     @app_commands.autocomplete(time=remove_player_amount_time_autocomplete)
+    @app_commands.guild_only()
     async def remove_player_amount_time(self, interaction: discord.Interaction, time: str):
         """Remove a specific set player amount queue time by datetime.  Staff use only."""
         try:
@@ -1484,6 +1486,7 @@ class SquadQueue(commands.Cog):
 
     @app_commands.command(name="remove_sq_time")
     @app_commands.autocomplete(time=sq_time_autocomplete)
+    @app_commands.guild_only()
     async def remove_sq_time(self, interaction: discord.Interaction, time: str):
         """Remove a specific Squad Queue time.  Staff use only."""
         dt_to_remove = datetime.fromisoformat(time)
