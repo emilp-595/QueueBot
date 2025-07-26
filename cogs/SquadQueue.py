@@ -382,6 +382,7 @@ class SquadQueue(commands.Cog):
                 # if len(self.forced_format_order) > 0 and self.queues_between_forced_format_queue:
                 # if self.queues_between_forced_format_queue:
                 #     await self.autoschedule_forced_format_times()
+                await self.update_schedule_channel()
         except BaseException:
             print("Purging Schedule channel failed", flush=True)
             print(traceback.format_exc())
