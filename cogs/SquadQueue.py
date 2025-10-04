@@ -594,7 +594,8 @@ class SquadQueue(commands.Cog):
         mogi.teams.append(squad)
         host_str = " as a host " if host else " "
         format_str = f"__**{mogi.format}**__ " if mogi.format else ""
-        msg += f"{players[0].lounge_name} joined the {self.ongoing_event.players_per_room} player {format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
+        player_amount_str = f"{self.ongoing_event.players_per_room} player " if common.SERVER is common.Server.MKWorld else ""
+        msg += f"{discord.utils.escape_markdown(players[0].lounge_name)} joined the {player_amount_str}{format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
         if common.SERVER is common.Server.MKW:
             if players[0].is_matchmaking_mmr_adjusted:
                 msg += f"\nPlayer considered {players[0].adjusted_mmr} MMR for matchmaking purposes."
@@ -741,7 +742,7 @@ class SquadQueue(commands.Cog):
                 msg += "**Late Players:**\n"
                 for i, player in enumerate(late_players, 1):
                     adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
-                    msg += f"`{i}.` {player.lounge_name} ({player.mmr} {adjusted_mmr_text}MMR)\n"
+                    msg += f"`{i}.` {discord.utils.escape_markdown(player.lounge_name)} ({player.mmr} {adjusted_mmr_text}MMR)\n"
             elif common.SERVER is common.Server.MK8DX:
                 all_confirmed_players.sort(reverse=True)
                 for i, player in enumerate(all_confirmed_players, 1):
@@ -938,7 +939,7 @@ class SquadQueue(commands.Cog):
         msg = f"!submit {format_} {room.tier}\n"
         for team in room.teams:
             for player in team.players:
-                msg += f"{player.lounge_name} {player.score}\n"
+                msg += f"{discord.utils.escape_markdown(player.lounge_name)} {player.score}\n"
             if format_ != 1:
                 msg += "\n"
         await interaction.response.send_message(msg)
@@ -1742,7 +1743,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
             for i, player in enumerate(not_in_proposed_list, 1):
                 removed_str = ": **Removed from player list**" if player in regular_player_list else ""
                 adjusted_mmr_text = f"MMR -> {player.adjusted_mmr} " if player.is_matchmaking_mmr_adjusted else ""
-                mogi_channel_msg += f"`{i}.` {player.lounge_name} ({int(player.mmr)} {adjusted_mmr_text}MMR) {removed_str}\n"
+                mogi_channel_msg += f"`{i}.` {discord.utils.escape_markdown(player.lounge_name)} ({int(player.mmr)} {adjusted_mmr_text}MMR) {removed_str}\n"
             try:
                 await mogi.mogi_channel.send(mogi_channel_msg)
             except discord.DiscordException:
