@@ -799,6 +799,15 @@ class SquadQueue(commands.Cog):
         except Exception as e:
             print(traceback.format_exc())
 
+    @list_task.error
+    async def list_task_error(self, error):
+        """Restart list if it crashes, wait a bit incase it's because of some rate limit nonsense"""
+        wait_time_seconds = 300
+        print(f"Task crashed: {error}", flush=True)
+        print(f"Waiting {wait_time_seconds} seconds before restarting...")
+        await asyncio.sleep(300)
+        self.list_task.restart()
+
     async def update_schedule_channel(self):
         """Update the Schedule Channel"""
 
