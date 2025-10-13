@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import aiohttp
 import discord
 from discord.ext import commands, tasks
@@ -1104,11 +1105,9 @@ class SquadQueue(commands.Cog):
     @app_commands.guild_only()
     async def reset_bot(self, interaction: discord.Interaction):
         """Resets the bot.  Staff use only."""
-        self.next_event = None
-        self.ongoing_event = None
-        self.old_events = []
-        self.LAUNCH_NEW_EVENTS = True
-        await interaction.response.send_message("All events have been deleted.  Queue will restart shortly.")
+        await interaction.response.send_message("Restarting bot container...", ephemeral=True)
+        await self.bot.close()
+        sys.exit(0)
 
     async def update_current_event_autocomplete(
         self, interaction: discord.Interaction, current: str
