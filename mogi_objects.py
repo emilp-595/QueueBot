@@ -77,6 +77,7 @@ class Mogi:
             minutes=additional_extension_minutes)
         self.format = format
         self.has_checked_auto_extend = False
+        self.final_amount_good_rooms = 0
 
     @property
     def num_players(self):

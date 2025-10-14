@@ -1563,7 +1563,7 @@ class SquadQueue(commands.Cog):
             if mogi is not None:
                 format_str = f"{mogi.format} " if mogi.format else ""
                 rooms_str = "Room" if len(mogi.rooms) == 1 else "Rooms"
-                await history_channel.send(f"{discord.utils.format_dt(mogi.display_time)} - {len(mogi.rooms)} {format_str}{rooms_str}")
+                await history_channel.send(f"{discord.utils.format_dt(mogi.display_time)} - {mogi.final_amount_good_rooms} {format_str}{rooms_str}")
                 for index, room in enumerate(mogi.rooms, 1):
                     if not room or not room.view:
                         print(
@@ -1639,6 +1639,8 @@ class SquadQueue(commands.Cog):
         if mogi.max_possible_rooms == 0:
             self.ongoing_event = None
             await mogi.mogi_channel.send(f"Not enough players to fill a single room! This mogi will be cancelled.")
+            format_str = f"{mogi.format} " if mogi.format else ""
+            await self.HISTORY_CHANNEL.send(f"{discord.utils.format_dt(mogi.display_time)} - 0 {format_str}Rooms")
             return
 
         was_gathering = mogi.gathering
@@ -1676,6 +1678,7 @@ class SquadQueue(commands.Cog):
             if not self.allowed_players_check(room_players):
                 mogi_channel_msg += f"\nThe mmr gap in the room is higher than the allowed threshold of {self.room_mmr_threshold} MMR, this room has been cancelled."
             else:
+                mogi.final_amount_good_rooms += 1
                 curr_room = mogi.rooms[room_number - 1]
                 curr_room.teams = [Team([p]) for p in room_players]
                 curr_room.create_host_list()
