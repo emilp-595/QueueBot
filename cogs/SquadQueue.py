@@ -1665,7 +1665,11 @@ class SquadQueue(commands.Cog):
         regular_player_list = all_confirmed_players[:first_late_player_index]
         late_player_list = all_confirmed_players[first_late_player_index:]
         proposed_list = mogi.generate_proposed_list(self.allowed_players_check)
-        await mogi.populate_host_fcs()
+        potential_host_str == ""
+        try:
+            await mogi.populate_host_fcs()
+        except:
+            potential_host_str = f"Fetching friendcodes failed. Decide a host amongst yourselves."
         for room_number, room_players in enumerate(
                 divide_chunks(proposed_list, mogi.players_per_room), 1):
             mogi_channel_msg = f"`Room {room_number} - Player List`\n"
@@ -1686,7 +1690,8 @@ class SquadQueue(commands.Cog):
                 extra_member_mentions = " ".join(
                     [m.mention for m in extra_members if m is not None])
 
-                potential_host_str = curr_room.get_host_str()
+                if potential_host_str == "":
+                    potential_host_str = curr_room.get_host_str()
                 if potential_host_str == "":
                     potential_host_str += f"No one in the room queued as host. Decide a host amongst yourselves."
                 room_msg += f"\n{potential_host_str}\n"
