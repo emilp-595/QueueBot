@@ -1665,7 +1665,7 @@ class SquadQueue(commands.Cog):
         regular_player_list = all_confirmed_players[:first_late_player_index]
         late_player_list = all_confirmed_players[first_late_player_index:]
         proposed_list = mogi.generate_proposed_list(self.allowed_players_check)
-        potential_host_str == ""
+        potential_host_str = ""
         try:
             await mogi.populate_host_fcs()
         except:
