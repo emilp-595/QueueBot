@@ -1562,7 +1562,8 @@ class SquadQueue(commands.Cog):
         try:
             if mogi is not None:
                 format_str = f"{mogi.format} " if mogi.format else ""
-                rooms_str = "Room" if len(mogi.rooms) == 1 else "Rooms"
+                rooms_str = "Room" if len(
+                    mogi.final_amount_good_rooms) == 1 else "Rooms"
                 await history_channel.send(f"{discord.utils.format_dt(mogi.display_time)} - {mogi.final_amount_good_rooms} {format_str}{rooms_str}")
                 for index, room in enumerate(mogi.rooms, 1):
                     if not room or not room.view:
