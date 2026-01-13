@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-import aiohttp
+import io
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -284,6 +284,8 @@ class SquadQueue(commands.Cog):
 
         self.ratings = mmr.Ratings()
 
+        self.last_refreshed_rating_time: datetime = datetime.now(timezone.utc)
+
         self.load_staff_settings()
 
     def load_staff_settings(self, view_only=False):
@@ -404,6 +406,14 @@ class SquadQueue(commands.Cog):
         self.refresh_ratings.start()
         self.refresh_helper_roles.start()
         self.check_room_threads_task.start()
+
+        try:
+            await self.ratings.update_ratings()
+            self.last_refreshed_rating_time: datetime = datetime.now(
+                timezone.utc)
+        except Exception as e:
+            print(traceback.format_exc())
+
         if not common.CONFIG["USE_THREADS"]:
             self.maintain_roles.start()
 
@@ -513,6 +523,36 @@ class SquadQueue(commands.Cog):
         mogi.additional_extension += timedelta(minutes=minutes)
         await interaction.response.send_message(f"Extended queue by an additional {minutes} minute(s).")
 
+    @app_commands.command(name="print_internal_mmr_list")
+    @app_commands.guild_only()
+    async def print_internal_mmr_list(self, interaction: discord.Interaction):
+        """Prints the bot's internal mmr list. 
+
+        Staff use only.
+        """
+        if self.ratings.first_run_complete:
+            lines = []
+
+            for discord_id, (mmr, name) in self.ratings.ratings.items():
+                lines.append(
+                    f"Name: {name}\n"
+                    f"MMR: {mmr}\n"
+                    f"Discord ID: {discord_id}\n"
+                )
+
+            text = "\n".join(lines)
+            file = discord.File(
+                fp=io.BytesIO(text.encode("utf-8")),
+                filename="ratings.txt"
+            )
+
+            await interaction.response.send_message(
+                content="Here are the current ratings:",
+                file=file
+            )
+        else:
+            await interaction.response.send_message("Bot has not fetched ratings yet.")
+
     @app_commands.command(name="ch")
     @app_commands.guild_only()
     async def can_host(self, interaction: discord.Interaction):
@@ -598,6 +638,36 @@ class SquadQueue(commands.Cog):
         format_str = f"__**{mogi.format}**__ " if mogi.format else ""
         player_amount_str = f"{self.ongoing_event.players_per_room} player " if common.SERVER is common.Server.MKWorld else ""
         msg += f"{discord.utils.escape_markdown(players[0].lounge_name)} joined the {player_amount_str}{format_str}queue{host_str}closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
+        if common.SERVER is common.Server.MKW:
+            if players[0].is_matchmaking_mmr_adjusted:
+                msg += f"\nPlayer considered {players[0].adjusted_mmr} MMR for matchmaking purposes."
+
+        event_status_launched = await self.check_close_event_change()
+        try:
+            await interaction.response.send_message(msg)
+        finally:
+            if event_status_launched:
+                await self.launch_mogi()
+
+    @app_commands.command(name="staff_c_player")
+    @app_commands.guild_only()
+    async def staff_c_player(self, interaction: discord.Interaction, member: discord.Member, mmr: int | None = None):
+        """Adds a player from the server into the Queue.  MMR will be placement player mmr unless specified.  Staff Use Only."""
+        mogi = self.get_mogi(interaction)
+        if mogi is None or not mogi.started or not mogi.gathering:
+            await interaction.response.send_message("Queue has not started yet.")
+            return
+
+        starting_player_mmr = self.PLACEMENT_PLAYER_MMR
+        players = players = [
+            Player(member, member.display_name, mmr or starting_player_mmr)]
+
+        players[0].confirmed = True
+        squad = Team(players)
+        mogi.teams.append(squad)
+        format_str = f"__**{mogi.format}**__ " if mogi.format else ""
+        player_amount_str = f"{self.ongoing_event.players_per_room} player " if common.SERVER is common.Server.MKWorld else ""
+        msg = f"{discord.utils.escape_markdown(players[0].lounge_name)} has been added by staff with MMR {mmr or starting_player_mmr} to the {player_amount_str}{format_str}queue closing at {discord.utils.format_dt(mogi.start_time)}, `[{mogi.count_registered()} players]`"
         if common.SERVER is common.Server.MKW:
             if players[0].is_matchmaking_mmr_adjusted:
                 msg += f"\nPlayer considered {players[0].adjusted_mmr} MMR for matchmaking purposes."
@@ -730,7 +800,8 @@ class SquadQueue(commands.Cog):
                 all_confirmed_players[:first_late_player_index], reverse=True)
             late_players = all_confirmed_players[first_late_player_index:]
 
-            msg = f"**Queue closing: {discord.utils.format_dt(mogi.start_time)}**\n\n"
+            msg = f"**Queue Closing: {discord.utils.format_dt(mogi.start_time)}**\n"
+            msg += f"**Internal MMR List Last Refreshed: {discord.utils.format_dt(self.last_refreshed_rating_time)}**\n\n"
             format_str = f"{mogi.format} " if mogi.format else ""
             msg += f"**Current {mogi.players_per_room} Player {format_str}Mogi List:**\n"
             if common.SERVER is common.Server.MKW:
@@ -2119,13 +2190,44 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         except Exception as e:
             print(traceback.format_exc())
 
+    @app_commands.command(name="refresh_internal_mmr_ratings")
+    @app_commands.guild_only()
+    async def refresh_internal_mmr_ratings(
+        self,
+        interaction: discord.Interaction
+    ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            await self.ratings.update_ratings()
+            self.last_refreshed_rating_time = datetime.now(timezone.utc)
+            await interaction.followup.send("Successfully refreshed internal mmr list.")
+        except Exception:
+            print(traceback.format_exc(), flush=True)
+            await interaction.followup.send("Failed to refresh internal mmr list.")
+
     @tasks.loop(minutes=30)
     async def refresh_ratings(self):
         """Refreshes the ratings"""
         try:
             await self.ratings.update_ratings()
+            self.last_refreshed_rating_time = datetime.now(
+                timezone.utc)
         except Exception as e:
-            print(traceback.format_exc())
+            print(traceback.format_exc(), flush=True)
+
+    @refresh_ratings.before_loop
+    async def before_refresh_ratings(self):
+        await self.bot.wait_until_ready()
+        now = datetime.now(timezone.utc)
+        next_run = now.replace(second=0, microsecond=0)
+
+        if now.minute < 30:
+            next_run = next_run.replace(minute=30)
+        else:
+            next_run = (next_run + timedelta(hours=1)).replace(minute=0)
+
+        sleep_seconds = (next_run - now).total_seconds()
+        await asyncio.sleep(sleep_seconds)
 
     def get_event_str(self, mogi: Mogi):
         mogi_time = discord.utils.format_dt(mogi.start_time, style="F")
