@@ -860,7 +860,7 @@ class SquadQueue(commands.Cog):
             new_messages = []
             bulk_msg = ""
             for i in range(len(message)):
-                if len(bulk_msg + message[i] + "\n") > 2000:
+                if len(bulk_msg + message[i] + "\n") > 1000:
                     new_messages.append(bulk_msg)
                     bulk_msg = ""
                 bulk_msg += message[i] + "\n"
