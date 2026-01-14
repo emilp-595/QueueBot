@@ -834,7 +834,7 @@ class JoinView(View):
 def get_tier_mkw(mmr: int, players: List[Player]):
     if mmr > 9999 and player_threshold_check(10000, players):
         return '8'
-    if mmr > 8499 and player_threshold_check(8500, players):
+    if mmr > 8999 and player_threshold_check(9000, players):
         return '7'
     if mmr > 7999:
         return '6'
