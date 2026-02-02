@@ -327,7 +327,10 @@ class Room:
         elif common.SERVER is common.Server.MKW:
             return str(get_tier_mkw(self.avg_mmr, self.players))
         elif common.SERVER is common.Server.MKWorld:
-            return get_tier_mkworld(round(self.avg_mmr) - 500)
+            if len(self.players) == 12:
+                return get_tier_mkworld_12(round(self.avg_mmr))
+            else:
+                return get_tier_mkworld_24(round(self.avg_mmr))
 
     @property
     def tier_collection(self) -> str:
@@ -893,5 +896,59 @@ def get_tier_mk8dx(mmr: int):
         return 'G'
 
 
-def get_tier_mkworld(mmr: int):
-    return 'Q'
+def get_tier_mkworld_12(mmr: int):
+    if mmr >= 12500:
+        return 'X'
+    if mmr >= 11000:
+        return 'S'
+    if mmr >= 9500:
+        return 'A'
+    if mmr >= 8000:
+        return 'B'
+    if mmr >= 6500:
+        return 'C'
+    if mmr >= 5500:
+        return 'CD'
+    if mmr >= 4500:
+        return 'D'
+    if mmr >= 3500:
+        return 'DE'
+    if mmr >= 2500:
+        return 'E'
+    if mmr >= 1500:
+        return 'EF'
+    if mmr >= 500:
+        return 'F'
+    else:
+        return 'G'
+
+
+def get_tier_mkworld_24(mmr: int):
+    if mmr >= 13500:
+        return 'X'
+    if mmr >= 12000:
+        return 'S'
+    if mmr >= 10500:
+        return 'A'
+    if mmr >= 9500:
+        return 'B'
+    if mmr >= 8500:
+        return 'BC'
+    if mmr >= 7500:
+        return 'C'
+    if mmr >= 6500:
+        return 'CD'
+    if mmr >= 5500:
+        return 'D'
+    if mmr >= 4500:
+        return 'DE'
+    if mmr >= 3500:
+        return 'E'
+    if mmr >= 2500:
+        return 'EF'
+    if mmr >= 1500:
+        return 'F'
+    if mmr >= 500:
+        return 'FG'
+    else:
+        return 'G'
