@@ -1047,7 +1047,7 @@ class SquadQueue(commands.Cog):
 
         event_status_launched = await self.check_close_event_change()
         try:
-            await interaction.response.send_message(msg)
+            await interaction.response.send_message(msg, ephemeral=True)
         finally:
             if event_status_launched:
                 await self.launch_mogi()

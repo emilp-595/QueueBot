@@ -67,7 +67,7 @@ class Ratings:
         return await Ratings._pull_ratings(url, self._parse_mkw_ratings, self._validate_mkw_response)
 
     async def _pull_mkworld_ratings(self) -> bool:
-        url = f"""{common.CONFIG["url"]}/api/player/list?game=mkworld"""
+        url = f"""{common.CONFIG["url"]}/api/player/list?game=mkworld{common.CONFIG["PLAYERS_PER_ROOM"]}p"""
         return await Ratings._pull_ratings(url, self._parse_mk8dx_ratings, self._validate_mkworld_response)
 
     @staticmethod
