@@ -2375,7 +2375,7 @@ If you need staff's assistance, use the `/ping_staff` command in this channel.""
         member = ctx.author
         if not self.is_production:
             if common.SERVER is common.Server.MK8DX:
-                member = await self.bot.fetch_user(318637887597969419)
+                member = await self.bot.fetch_user(85186620252233728)
             elif common.SERVER is common.Server.MKW:
                 member = await self.bot.fetch_user(82862780591378432)
             elif common.SERVER is common.Server.MKWorld:

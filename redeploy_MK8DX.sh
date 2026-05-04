@@ -1,7 +1,7 @@
 #!/bin/bash
-docker stop mogi-queuebot
-docker rm mogi-queuebot
+docker stop mk8dx-mogi-queuebot
+docker rm mk8dx-mogi-queuebot
 docker container prune
-docker build --tag mogi-queuebot .
+docker build --tag mk8dx-mogi-queuebot .
 docker image prune
-docker run -d --name mogi-queuebot -v $(pwd)/settings_data:/app/settings_data --restart unless-stopped mogi-queuebot
+docker run -d --name mk8dx-mogi-queuebot -v $(pwd)/settings_data:/app/settings_data --restart unless-stopped mk8dx-mogi-queuebot
