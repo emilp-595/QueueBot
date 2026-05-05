@@ -33,9 +33,9 @@ STAFF_SETTINGS_PKL = "./settings_data/staff_settings.pkl"
 
 
 def is_restricted(user: discord.User | discord.Member) -> bool:
-    muted_role_id = common.CONFIG.get("muted_role_id")
+    muted_role_ids = common.CONFIG.get("muted_role_ids")
     restricted_role_id = common.CONFIG.get("restricted_role_id")
-    return (muted_role_id is not None and user.get_role(muted_role_id)) or (
+    return (muted_role_ids is not None and any(user.get_role(role_id) for role_id in muted_role_ids)) or (
         restricted_role_id is not None and user.get_role(restricted_role_id))
 
 

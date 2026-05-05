@@ -6,8 +6,8 @@
     "guild_id": 1326380310233092157,
     "queue_join_channel": 1349069297955242038,
     "queue_sub_channel": 1349069321942339664,
-	"queue_list_channel": 1349069264157671564,
-	"queue_history_channel": 1349069358554677380,
+    "queue_list_channel": 1349069264157671564,
+    "queue_history_channel": 1349069358554677380,
     "queue_general_channel": 1349069297955242038,
     "queue_schedule_channel": 1349069338237206589,
     "admin_roles": [
@@ -18,8 +18,8 @@
         1326381688900812800
     ],
     "members_for_channels": [
-        934740707934081035, 
-        743532508343304242, 
+        934740707934081035,
+        743532508343304242,
         735910635082219570
     ],
     "roles_for_channels": [],
@@ -28,7 +28,9 @@
     "placement_role_id": 1381068401908252833,
     "frequently_tagged_role_id": 1382218727445102653,
     "restricted_role_id": 1381068109359616050,
-    "muted_role_id": 1349068927489278074,
+    "muted_role_ids": [
+        1349068927489278074
+    ],
     "queue_messages": true,
     "sec_between_queue_msgs": 2,
     "username": "username",
@@ -37,7 +39,9 @@
     "track_type": "rt",
     "FIRST_EVENT_TIME": -12,
     "FIRST_EVENT_TIME_DESCRIPTION": "First event time is the number of minutes from 0:00 UTC that the bot would run the first event of the day. As an example, if this were set to 5, and the QUEUE_OPEN_TIME were set to 70, and the bot were to reboot at 2:00 UTC, the next event would immediately start and create rooms at 2:25 UTC.",
-    "FORCED_FORMAT_ORDER": ["FFA"],
+    "FORCED_FORMAT_ORDER": [
+        "FFA"
+    ],
     "FORCED_FORMAT_ORDER_OFFSET": 0,
     "FORCED_FORMAT_HOURLY_OFFSET": 0,
     "FORCED_FORMAT_AUTOSCHEDULE_AMOUNT": 24,
@@ -48,7 +52,7 @@
     "EXTENSION_TIME": 3,
     "ROOM_JOIN_PENALTY_TIME": 6,
     "MOGI_LIFETIME": 180,
-    "SUB_RANGE_MMR_ALLOWANCE": 500, 
+    "SUB_RANGE_MMR_ALLOWANCE": 500,
     "SUB_MESSAGE_LIFETIME_SECONDS": 1200,
     "ROOM_MMR_THRESHOLD": 9999999,
     "MATCHMAKING_BOTTOM_MMR": null,

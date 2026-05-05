@@ -23,7 +23,7 @@ STRONGLY_REQUIRED_FIELDS = [
     ("placement_role_id", int),
     ("frequently_tagged_role_id", int),
     ("restricted_role_id", int),
-    ("muted_role_id", int),
+    ("muted_role_ids", list),
     ("queue_messages", bool),
     ("sec_between_queue_msgs", int),
     ("username", str),
