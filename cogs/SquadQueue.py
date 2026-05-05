@@ -992,6 +992,17 @@ class SquadQueue(commands.Cog):
         if player is not None:
             player.score = int(message.content)
 
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        mogi = self.ongoing_event
+        if mogi is None:
+            return
+        team = mogi.check_player(member)
+        if not team:
+            return
+        mogi.teams.remove(team)
+        await self.MOGI_CHANNEL.send(f"{member.display_name} has left the server, so they have been removed from the queue")
+
     @app_commands.command(name="scoreboard")
     @app_commands.guild_only()
     async def scoreboard(self, interaction: discord.Interaction):
