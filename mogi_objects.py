@@ -899,7 +899,7 @@ def get_tier_mk8dx(mmr: int):
 def get_tier_mkworld_12(mmr: int):
     if mmr >= 13000:
         return 'X'
-    if mmr >= 12500:
+    if mmr >= 11500:
         return 'S'
     if mmr >= 10000:
         return 'A'
