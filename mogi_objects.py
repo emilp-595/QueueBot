@@ -785,6 +785,7 @@ class JoinView(View):
                  room: Room,
                  get_rating_from_discord_id,
                  sub_range_mmr_allowance,
+                 use_sub_range_when_one_room,
                  bottom_room_num,
                  is_restricted: Callable[[discord.User | discord.Member],
                                          bool] | None = None):
@@ -792,6 +793,7 @@ class JoinView(View):
         self.room = room
         self.get_rating_from_discord_id = get_rating_from_discord_id
         self.sub_range_mmr_allowance = sub_range_mmr_allowance
+        self.use_sub_range_when_one_room = use_sub_range_when_one_room
         self.bottom_room_num = bottom_room_num
         self.is_restricted = is_restricted
 
@@ -815,8 +817,8 @@ class JoinView(View):
                 "MMR lookup for player has failed, please try again.", ephemeral=True)
             return
 
-        mmr_high = 999999 if self.room.room_num == 1 else self.room.mmr_high
-        mmr_low = -999999 if self.room.room_num == self.bottom_room_num else self.room.mmr_low
+        mmr_high = 999999 if self.room.room_num == 1 and not self.use_sub_range_when_one_room else self.room.mmr_high
+        mmr_low = -999999 if self.room.room_num == self.bottom_room_num and not self.use_sub_range_when_one_room else self.room.mmr_low
         if isinstance(user_mmr, int) and mmr_high + \
                 self.sub_range_mmr_allowance > user_mmr > mmr_low - self.sub_range_mmr_allowance:
             self.room.subs.append(interaction.user.id)

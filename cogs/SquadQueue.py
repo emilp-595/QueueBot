@@ -228,6 +228,8 @@ class SquadQueue(commands.Cog):
 
         self.SUB_RANGE_MMR_ALLOWANCE = bot.config["SUB_RANGE_MMR_ALLOWANCE"]
 
+        self.USE_SUB_RANGE_WHEN_ONE_ROOM = bot.config["USE_SUB_RANGE_WHEN_ONE_ROOM"]
+
         self.SUB_MESSAGE_LIFETIME_SECONDS = bot.config["SUB_MESSAGE_LIFETIME_SECONDS"]
 
         self.room_mmr_threshold = bot.config["ROOM_MMR_THRESHOLD"]
@@ -312,6 +314,8 @@ class SquadQueue(commands.Cog):
                         ), tzinfo=timezone.utc) + timedelta(minutes=settings_dict["FIRST_EVENT_TIME"])
                     if "SUB_RANGE_MMR_ALLOWANCE" in settings_dict:
                         self.SUB_RANGE_MMR_ALLOWANCE = settings_dict["SUB_RANGE_MMR_ALLOWANCE"]
+                    if "USE_SUB_RANGE_WHEN_ONE_ROOM" in settings_dict:
+                        self.USE_SUB_RANGE_WHEN_ONE_ROOM = settings_dict["USE_SUB_RANGE_WHEN_ONE_ROOM"]
                     if "PLACEMENT_PLAYER_MMR" in settings_dict:
                         self.PLACEMENT_PLAYER_MMR = settings_dict["PLACEMENT_PLAYER_MMR"]
                         common.CONFIG["PLACEMENT_PLAYER_MMR"] = settings_dict["PLACEMENT_PLAYER_MMR"]
@@ -329,6 +333,7 @@ class SquadQueue(commands.Cog):
             "QUEUE_OPEN_TIME": self.QUEUE_OPEN_TIME,
             "JOINING_TIME": self.JOINING_TIME,
             "SUB_RANGE_MMR_ALLOWANCE": self.SUB_RANGE_MMR_ALLOWANCE,
+            "USE_SUB_RANGE_WHEN_ONE_ROOM": self.USE_SUB_RANGE_WHEN_ONE_ROOM,
             "MATCHMAKING_BOTTOM_MMR": common.CONFIG["MATCHMAKING_BOTTOM_MMR"],
             "MATCHMAKING_TOP_MMR": common.CONFIG["MATCHMAKING_TOP_MMR"],
             "FIRST_EVENT_TIME": common.CONFIG["FIRST_EVENT_TIME"],
@@ -765,23 +770,27 @@ class SquadQueue(commands.Cog):
         frequently_tagged_role_id = self.bot.config["frequently_tagged_role_id"]
         msg = f"<@&{frequently_tagged_role_id}> - "
         if bottom_room_num == 1:
-            msg += f"Room 1 is looking for a sub for {races_left} more races with any mmr\n"
+            if self.USE_SUB_RANGE_WHEN_ONE_ROOM:
+                msg += f"Room 1 is looking for a sub for {races_left} more races with MMR range {room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}-{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
+            else:
+                msg += f"Room 1 is looking for a sub for {races_left} more races with any MMR\n"
         elif room.room_num == 1:
-            msg += f"Room 1 is looking for a sub for {races_left} more races with mmr >{room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}\n"
+            msg += f"Room 1 is looking for a sub for {races_left} more races with MMR >{room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}\n"
         elif room.room_num == bottom_room_num:
-            msg += f"Room {room.room_num} is looking for a sub for {races_left} more races with mmr <{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
+            msg += f"Room {room.room_num} is looking for a sub for {races_left} more races with MMR <{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
         else:
-            msg += f"Room {room.room_num} is looking for a sub for {races_left} more races with range {room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}-{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
+            msg += f"Room {room.room_num} is looking for a sub for {races_left} more races with MMR range {room.mmr_low - self.SUB_RANGE_MMR_ALLOWANCE}-{room.mmr_high + self.SUB_RANGE_MMR_ALLOWANCE}\n"
         message_delete_date = datetime.now(
             timezone.utc) + timedelta(seconds=self.SUB_MESSAGE_LIFETIME_SECONDS)
         msg += f"Message will auto-delete in {discord.utils.format_dt(message_delete_date, style='R')}"
-        await self.SUB_CHANNEL.send(msg, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
+        # await self.SUB_CHANNEL.send(msg, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         view = JoinView(room,
                         self.ratings.get_rating_from_discord_id,
                         self.SUB_RANGE_MMR_ALLOWANCE,
+                        self.USE_SUB_RANGE_WHEN_ONE_ROOM,
                         bottom_room_num,
                         is_restricted)
-        await self.SUB_CHANNEL.send(view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
+        await self.SUB_CHANNEL.send(msg, view=view, delete_after=self.SUB_MESSAGE_LIFETIME_SECONDS)
         cooldowns[interaction.user.id] = current_time  # Updates cooldown
         await interaction.response.send_message("Sent out request for sub.")
 
@@ -1177,6 +1186,7 @@ class SquadQueue(commands.Cog):
         msg += f"ROOM JOIN PENALTY TIME: {self.ROOM_JOIN_PENALTY_TIME} minutes\n"
         msg += f"EVENT LIFETIME: {self.MOGI_LIFETIME} minutes\n"
         msg += f"EXTRA SUB RANGE ALLOWANCE: +- {self.SUB_RANGE_MMR_ALLOWANCE} MMR\n"
+        msg += f"USE SUB RANGE WHEN ONE ROOM: {self.USE_SUB_RANGE_WHEN_ONE_ROOM}\n"
         msg += f"SUB MESSAGE LIFETIME: {self.SUB_MESSAGE_LIFETIME_SECONDS} seconds\n"
         msg += f"ROOM MMR THRESHOLD: {self.room_mmr_threshold}\n"
         msg += f"MATCHMAKING BOTTOM MMR: {common.CONFIG['MATCHMAKING_BOTTOM_MMR']}\n"

@@ -44,6 +44,7 @@ STRONGLY_REQUIRED_FIELDS = [
     ("ROOM_JOIN_PENALTY_TIME", int),
     ("MOGI_LIFETIME", int),
     ("SUB_RANGE_MMR_ALLOWANCE", int),
+    ("USE_SUB_RANGE_WHEN_ONE_ROOM", bool),
     ("SUB_MESSAGE_LIFETIME_SECONDS", int),
     ("ROOM_MMR_THRESHOLD", int),
     ("MATCHMAKING_BOTTOM_MMR", (int, type(None))),
